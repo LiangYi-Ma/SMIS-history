@@ -115,8 +115,11 @@ class classInfo(models.Model):
 
     def update_class_status(self):
         now = datetime.datetime.now()
-        start = datetime.datetime(self.class_start_date.year, self.class_start_date.month, self.class_start_date.day)
-        end = datetime.datetime(self.class_end_date.year, self.class_end_date.month, self.class_end_date.day)
+        # DateField中存储的是字符串（？）
+        start = datetime.datetime.strptime(self.class_start_date, '%Y-%m-%d')
+        end = datetime.datetime.strptime(self.class_end_date, '%Y-%m-%d')
+        # start = datetime.datetime(self.class_start_date.year, self.class_start_date.month, self.class_start_date.day)
+        # end = datetime.datetime(self.class_end_date.year, self.class_end_date.month, self.class_end_date.day)
         if start > now:
             self.class_status = 0
         elif end < now:
@@ -198,15 +201,16 @@ class classStudentCon(models.Model):
 
 class practiceRecords(models.Model):
     practice_id = models.AutoField(primary_key=True, verbose_name='实训id')
-    class_id = models.ForeignKey(classInfo, verbose_name='班级', on_delete=models.CASCADE)
-    student_id = models.ForeignKey(studentInfo, verbose_name='学生', on_delete=models.CASCADE)
+    # class_id = models.ForeignKey(classInfo, verbose_name='班级', on_delete=models.CASCADE)
+    # student_id = models.ForeignKey(studentInfo, verbose_name='学生', on_delete=models.CASCADE)
+    class_student = models.ForeignKey(classStudentCon, verbose_name="班级-学生", on_delete=models.CASCADE)
     available_times = models.IntegerField(default=3, verbose_name='剩余可实训次数')
     deadline = models.DateField(null=True, blank=True, verbose_name="实训截止日期")
     practice_score = models.FloatField(null=True, blank=True, verbose_name="最高实训成绩")
     latest_update_date = models.DateField(auto_now=True, verbose_name="上次更新日期")
 
     def is_passed(self):
-        return self.practice_score >= self.class_id.min_practice_score
+        return self.practice_score >= self.class_student.class_id.min_practice_score
 
     class Meta:
         verbose_name_plural = '实训结果记录表'
@@ -227,13 +231,12 @@ class examRecords(models.Model):
 
 class onlineStudyRecords(models.Model):
     online_study_id = models.AutoField(primary_key=True, verbose_name='实训id')
-    class_id = models.ForeignKey(classInfo, verbose_name='班级', on_delete=models.CASCADE)
-    student_id = models.ForeignKey(studentInfo, verbose_name='学生', on_delete=models.CASCADE)
+    class_student = models.ForeignKey(classStudentCon, verbose_name="班级-学生", on_delete=models.CASCADE)
     accumulated_time = models.FloatField(verbose_name='累计时长（h）', default=0)
     latest_time = models.FloatField(verbose_name='上次新增时长（h）', default=0)
 
     def is_passed(self):
-        return self.accumulated_time >= self.class_id.min_study_time
+        return self.accumulated_time >= self.class_student.class_id.min_study_time
 
     class Meta:
         verbose_name_plural = '线上课时长记录表'

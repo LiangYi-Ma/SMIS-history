@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     # 'django_comments',
     # 标签模块
     'taggit',
+    'django_crontab',
 ]
 
 SITE_ID = 1
@@ -113,7 +114,7 @@ STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, "static")
 STATICFILES_DIRS = (
     os.path.join(BASE_DIR, 'frontend/dist/static'),
-#    "/Users/yaqi meng/fsdownload/SMIS/static/",
+    #    "/Users/yaqi meng/fsdownload/SMIS/static/",
 )
 #
 # MEDIA_ROOT = "media/"
@@ -165,7 +166,7 @@ DATABASE_APPS_MAPPING = {
     'cv': 'default',
     'enterprise': 'default',
     'cert': 'db_cert',
-    }
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/2.0/ref/settings/#auth-password-validators
@@ -250,9 +251,16 @@ code2Session = 'https://api.weixin.qq.com/sns/jscode2session?appid={}&secret={}&
 EMAIL_HOST = 'smtp.163.com'
 # 设置端口号，为数字
 EMAIL_PORT = 25
-#设置发件人邮箱
+# 设置发件人邮箱
 EMAIL_HOST_USER = '@163.com'
 # 设置发件人 授权码
 EMAIL_HOST_PASSWORD = 'pw'
 # 设置是否启用安全链接
 EMAIL_USER_TLS = True
+
+
+'''定时任务设置'''
+# 每天12点开始更新班级里的学习时长
+CRONJOBS = [
+    ('12 00 * * *', 'cert.crontab-apis.update_online_study_progress'),
+]

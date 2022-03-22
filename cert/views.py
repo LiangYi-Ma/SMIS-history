@@ -28,17 +28,17 @@ from PIL import Image
 import requests
 import urllib
 
-from SMIS import constants, mapper, validation
+from SMIS import constants, mapper
+from SMIS import validation as global_validation
 from cert.models import studentInfo, teacherInfo, courseInfo, certificationInfo, classInfo, \
     classCourseCertCon, classTeacherCon, classStudentCon, classExamCon, practiceRecords, examRecords, \
-    updateDateRecords, failedUpdateRecords
+    updateDateRecords, failedUpdateRecords, onlineStudyRecords
 from cert.csv_file_process import process_student_file
 from cert import csv_file_process
 from cert import validation
 from SMIS import settings
-
 from cert.api_xet_client import XiaoeClient
-from SMIS.api_authority_manage import AuthorityManage
+from SMIS.api_authority_manager import AuthorityManager
 
 
 # Create your views here.
@@ -71,6 +71,7 @@ def session_exist(request):
 class registerStudentView(View):
     """注册为学员"""
 
+    # 未启用get
     def get(self, request, *args, **kwargs):
         session_dict = session_exist(request)
         if session_dict["code"] != 1000:
@@ -85,6 +86,7 @@ class registerStudentView(View):
 
         """main content of this method"""
 
+        # 暂时不需要，后续可以删掉这段
         sex_choice = []
         for idx, label in constants.SEX_CHOICE:
             sex_choice.append(dict(idx=idx, label=label))
@@ -232,7 +234,7 @@ class studentCertificationView(View):
 
 
 class bindingXetUser(View):
-    def post(self, request, *args, **kwargs):
+    def get(self, request, *args, **kwargs):
         session_dict = session_exist(request)
         if session_dict["code"] != 1000:
             return JsonResponse(session_dict)
@@ -246,9 +248,11 @@ class bindingXetUser(View):
 
         this_student = studentInfo.objects.using("db_cert").get(student_id=user.id)
 
-        para = json.loads(request.body.decode())
+        # para = json.loads(request.body.decode())
         """main content of this method"""
-        student_phone = para["phone"]
+
+        # student_phone = para["phone"]
+        student_phone = this_student.phone_number
         api_url = "https://api.xiaoe-tech.com/xe.user.info.get/1.0.0"
         params = {
             "data": {
@@ -433,6 +437,12 @@ class certEditionView(View):
         user = User.objects.get(pk=uid)
 
         """main content of this method"""
+        valid_res = AuthorityManager(user_obj=user)
+        if not valid_res.is_staff():
+            back_dic["code"] = 10400
+            back_dic["msg"] = "无权限查看"
+            return JsonResponse(back_dic)
+
         # 当前证书列表，优先按照名称分组，组内按照级别排序，
         certification_query = certificationInfo.objects.using("db_cert").all().order_by('cert_name', 'cert_level')
         data["certification_count"] = certification_query.count()
@@ -480,6 +490,12 @@ class certEditionView(View):
         session = Session.objects.get(session_key=session_key)
         uid = session.get_decoded().get('_auth_user_id')
         user = User.objects.get(pk=uid)
+
+        valid_res = AuthorityManager(user_obj=user)
+        if not valid_res.is_staff():
+            back_dic["code"] = 10400
+            back_dic["msg"] = "无权限查看"
+            return JsonResponse(back_dic)
 
         """main content of this method"""
         try:
@@ -600,6 +616,12 @@ def editCertificationSample(request, cert_id):
     uid = session.get_decoded().get('_auth_user_id')
     user = User.objects.get(pk=uid)
 
+    valid_res = AuthorityManager(user_obj=user)
+    if not valid_res.is_staff():
+        back_dic["code"] = 10400
+        back_dic["msg"] = "无权限查看"
+        return JsonResponse(back_dic)
+
     this_cert = certificationInfo.objects.using("db_cert").filter(cert_id=cert_id)
     if not this_cert.exists():
         back_dic["code"] = 10200
@@ -637,6 +659,12 @@ class teacherEditionView(View):
         session = Session.objects.get(session_key=session_key)
         uid = session.get_decoded().get('_auth_user_id')
         user = User.objects.get(pk=uid)
+
+        valid_res = AuthorityManager(user_obj=user)
+        if not valid_res.is_staff():
+            back_dic["code"] = 10400
+            back_dic["msg"] = "无权限查看"
+            return JsonResponse(back_dic)
 
         """main content of this method"""
         teacher_query = teacherInfo.objects.using("db_cert").order_by("-level", "teaching_field").all()
@@ -682,6 +710,12 @@ class teacherEditionView(View):
         session = Session.objects.get(session_key=session_key)
         uid = session.get_decoded().get('_auth_user_id')
         user = User.objects.get(pk=uid)
+
+        valid_res = AuthorityManager(user_obj=user)
+        if not valid_res.is_staff():
+            back_dic["code"] = 10400
+            back_dic["msg"] = "无权限查看"
+            return JsonResponse(back_dic)
 
         """main content of this method"""
         try:
@@ -783,6 +817,12 @@ def editTeacherPhoto(request, teacher_id):
     uid = session.get_decoded().get('_auth_user_id')
     user = User.objects.get(pk=uid)
 
+    valid_res = AuthorityManager(user_obj=user)
+    if not valid_res.is_staff():
+        back_dic["code"] = 10400
+        back_dic["msg"] = "无权限查看"
+        return JsonResponse(back_dic)
+
     '''检查该教师是否存在'''
     this_teacher = teacherInfo.objects.using("db_cert").filter(teacher_id=teacher_id)
     if not this_teacher.exists():
@@ -824,6 +864,12 @@ class courseEditionView(View):
         uid = session.get_decoded().get('_auth_user_id')
         user = User.objects.get(pk=uid)
 
+        valid_res = AuthorityManager(user_obj=user)
+        if not valid_res.is_staff():
+            back_dic["code"] = 10400
+            back_dic["msg"] = "无权限查看"
+            return JsonResponse(back_dic)
+
         """main content of this method"""
         # 所有课程，按照课程方向分组，课程类别排序
         all_course = courseInfo.objects.using("db_cert").order_by("course_direction", "course_type").all()
@@ -841,6 +887,7 @@ class courseEditionView(View):
                 if k == each_course.course_type:
                     course_type = v
             dic = dict(
+                course_id=each_course.course_id,
                 course_name=each_course.course_name,
                 course_direction=course_direction,
                 course_type=course_type,
@@ -867,6 +914,12 @@ class courseEditionView(View):
         session = Session.objects.get(session_key=session_key)
         uid = session.get_decoded().get('_auth_user_id')
         user = User.objects.get(pk=uid)
+
+        valid_res = AuthorityManager(user_obj=user)
+        if not valid_res.is_staff():
+            back_dic["code"] = 10400
+            back_dic["msg"] = "无权限查看"
+            return JsonResponse(back_dic)
 
         para = json.loads(request.body.decode())
         """main content of this method"""
@@ -965,6 +1018,13 @@ def editCourseAdsPicture(request, course_id):
     session = Session.objects.get(session_key=session_key)
     uid = session.get_decoded().get('_auth_user_id')
     user = User.objects.get(pk=uid)
+
+    valid_res = AuthorityManager(user_obj=user)
+    if not valid_res.is_staff():
+        back_dic["code"] = 10400
+        back_dic["msg"] = "无权限查看"
+        return JsonResponse(back_dic)
+
     '''检查该课程是否存在'''
     this_course = courseInfo.objects.using("db_cert").filter(course_id=course_id)
     if not this_course.exists():
@@ -994,7 +1054,6 @@ def editCourseAdsPicture(request, course_id):
 
 
 class classEditionView(View):
-
     def get(self, request, *args, **kwargs):
         session_dict = session_exist(request)
         if session_dict["code"] != 1000:
@@ -1006,6 +1065,12 @@ class classEditionView(View):
         session = Session.objects.get(session_key=session_key)
         uid = session.get_decoded().get('_auth_user_id')
         user = User.objects.get(pk=uid)
+        #
+        # valid_res = AuthorityManager(user_obj=user)
+        # if not valid_res.is_staff():
+        #     back_dic["code"] = 10400
+        #     back_dic["msg"] = "无权限查看"
+        #     return JsonResponse(back_dic)
 
         """main content of this method"""
         '''状态不为关闭的班级'''
@@ -1093,6 +1158,12 @@ class classEditionView(View):
         uid = session.get_decoded().get('_auth_user_id')
         user = User.objects.get(pk=uid)
 
+        valid_res = AuthorityManager(user_obj=user)
+        if not valid_res.is_staff():
+            back_dic["code"] = 10400
+            back_dic["msg"] = "无权限查看"
+            return JsonResponse(back_dic)
+
         """main content of this method"""
         try:
             para = json.loads(request.body.decode())
@@ -1120,6 +1191,7 @@ class classEditionView(View):
             if valid_res["code"] == 1000:
                 '''数据校验通过'''
                 if edit_type is "1":
+                    '''班级新增'''
                     '''班级是否查重暂未确定，暂未查重'''
                     new_class = classInfo.objects.using("db_cert").create(
                         class_type=para["class_type"],
@@ -1331,6 +1403,17 @@ class classDetailsView(View):
             )
             data["related_cert"] = cert_dic
 
+        """与该班级关联的考试"""
+        has_related_exam = classExamCon.objects.using("db_cert").filter(class_id_id=class_id)
+        if has_related_exam.exists():
+            data["has_exam_related"] = True
+            '''未做考试信息展示'''
+            related_exam = has_related_exam.first()
+            exam_id = related_exam.exam_id
+
+        else:
+            data["has_exam_related"] = False
+
         back_dic["data"] = data
         return JsonResponse(back_dic)
 
@@ -1364,6 +1447,11 @@ class classDetailsView(View):
         if edit_type == "101":
             '''新增教师'''
             this_teacher = teacherInfo.objects.using("db_cert").get(teacher_id=para["teacher_id"])
+            exist_already = classTeacherCon.objects.using("db_cert").filter(class_id_id=class_id, teacher_id_id=this_teacher.teacher_id)
+            if exist_already.exists():
+                back_dic["code"] = 10300
+                back_dic["msg"] = "该教师已关联过该班级，无法重复关联"
+                return JsonResponse(back_dic)
             classTeacherCon.objects.using("db_cert").create(class_id_id=class_id, teacher_id_id=this_teacher.teacher_id,
                                                             teacher_responsibility=para["responsibility"])
             back_dic["code"] = 1000
@@ -1439,10 +1527,15 @@ class classDetailsView(View):
             # 根据班级设置检查更新初始进度
             if this_class.is_online_study_exist:
                 new_joined.study_progress = 0
+                onlineStudyRecords.objects.using("db_cert").create(class_student=new_joined)
             if this_class.is_practice_exist:
                 new_joined.practice_progress = 0
+                practiceRecords.objects.using("db_cert").create(class_student=new_joined)
             if this_class.is_exam_exist:
                 new_joined.exam_progress = 0
+                this_exam_con = classExamCon.objects.using("db_cert").filter(class_id_id=class_id)
+                this_exam_con = this_exam_con.first()
+                examRecords.objects.using("db_cert").create(class_exam_id_id=this_exam_con.class_exam_id, student_id_id=student_id)
             if this_class.is_cert_exist:
                 new_joined.cert_progress = 0
             new_joined.save()
@@ -1470,6 +1563,12 @@ class classDetailsView(View):
 
             # 执行取消报名
             is_joined.delete()
+            # 删除考试记录，线上课记录、实训记录自动级联删除
+            if this_class.is_exam_exist:
+                this_class_exam_con = classExamCon.objects.using("db_cert").get(class_id_id=class_id)
+                exam_record = examRecords.objects.using("db_cert").filter(class_exam_id_id=this_class_exam_con.class_exam_id,
+                                                                          student_id_id=user.id)
+                exam_record.delete()
             back_dic["code"] = 1000
             back_dic["msg"] = "取消报名成功"
             return JsonResponse(back_dic)
@@ -1531,8 +1630,8 @@ class examListSearch(View):
         para = json.loads(request.body.decode())
         """main content of this method"""
         '''权限检查'''
-        manager = AuthorityManage(user_obj=user)
-        if not manager.is_staff():
+        MANAGER = AuthorityManager(user_obj=user)
+        if not MANAGER.is_staff():
             back_dic["code"] = 10400
             back_dic["msg"] = "无权限访问"
             return JsonResponse(back_dic)
@@ -1569,7 +1668,6 @@ class examListSearch(View):
                         "total_question": 2, "total_score": 4}],
                    "total_count": 8}}
         """
-
         '''制作考试列表'''
         required_keys = ["id", "name", "created_at"]
         exam_info_list = []
@@ -1578,7 +1676,7 @@ class examListSearch(View):
             exam_info["operation"] = 0 if each_exam["state"] in [2, 3] else 1
             exam_info_list.append(exam_info)
         data["exam_info_list"] = exam_info_list
-        data["exam_list"] = exam_list
+        # data["exam_list"] = exam_list
         back_dic["data"] = data
         return JsonResponse(back_dic)
 
@@ -1877,6 +1975,9 @@ class classStudentsManagementView(View):
             return JsonResponse(back_dic)
         back_dic["data"] = data
         return JsonResponse(back_dic)
+
+
+
 
 
 def default_sentences(self, request, *args, **kwargs):
