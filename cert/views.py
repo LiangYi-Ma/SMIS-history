@@ -39,6 +39,7 @@ from cert import validation
 from SMIS import settings
 from cert.api_xet_client import XiaoeClient
 from SMIS.api_authority_manager import AuthorityManager
+from cert.api_crontab import update_online_study_progress_by_hand
 
 
 # Create your views here.
@@ -1696,6 +1697,11 @@ class studentDetailsView(View):
 
         """main content of this method"""
         student_id = self.kwargs["student_id"]
+        if (not user.is_staff) and (user.id != student_id):
+            back_dic["code"] = 10400
+            back_dic["msg"] = "你无法查看其他学员的信息"
+            return JsonResponse(back_dic)
+
         try:
             this_student = studentInfo.objects.using("db_cert").get(student_id=student_id)
         except:
@@ -1726,6 +1732,7 @@ class studentDetailsView(View):
             for each_joined in joined_list:
                 info = dict()
                 info["class_id"] = each_joined.class_id_id
+                class_student_con_id = each_joined.class_student_id
                 class_status = ""
                 for k, v in constants.CLASS_STATUS:
                     if k == each_joined.class_id.class_status:
@@ -1977,7 +1984,41 @@ class classStudentsManagementView(View):
         return JsonResponse(back_dic)
 
 
+class updateOnlineStudyRecordsByHand(View):
+    def get(self, request, *args, **kwargs):
+        """
+        手动更新线上课更新失败的记录
+        :param request:
+        :param args:
+        :param kwargs:
+        :return:
+        """
+        session_dict = session_exist(request)
+        if session_dict["code"] != 1000:
+            return JsonResponse(session_dict)
+        back_dic = dict(code=1000, msg="", data=dict())
+        data = dict()
 
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        user = User.objects.get(pk=uid)
+
+        MANAGER = AuthorityManager(user_obj=user)
+        if not MANAGER.is_staff():
+            back_dic["code"] = 10400
+            back_dic["msg"] = "无权限访问"
+            return JsonResponse(back_dic)
+
+        """main content of this method"""
+        class_id = self.kwargs["class_id"]
+        para = json.loads(request.body.decode())
+        failed_date = para["date"]
+
+        res = update_online_study_progress_by_hand(class_id, failed_date)
+        back_dic = res
+
+        return JsonResponse(back_dic)
 
 
 def default_sentences(self, request, *args, **kwargs):

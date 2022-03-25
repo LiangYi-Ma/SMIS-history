@@ -7,6 +7,7 @@
 from SMIS import constants
 import re
 import datetime
+from SMIS.validation import ValidationIdNumber
 
 
 def is_null(val):
@@ -82,6 +83,38 @@ def cert_is_valid(para):
         back_dic["msg"] = "有效时限长度不合法"
     else:
         pass
+    return back_dic
+
+
+def student_info_is_valid(para):
+    back_dic = {
+        'code': 1000,
+        'msg': '已完成',
+        'url': '',
+    }
+    print(para)
+    if is_null(para["name"]):
+        back_dic["code"] = 1001
+        back_dic["msg"] = "姓名不能为空"
+    elif len(para["name"]) > 16:
+        back_dic["code"] = 1002
+        back_dic["msg"] = "姓名过长"
+    elif (not is_number(para["phone"])) or len(para["phone"]) != 11:
+        back_dic["code"] = 1003
+        back_dic["msg"] = "请输入正确格式的手机号"
+    elif is_null(para["wechat"]):
+        back_dic["code"] = 1004
+        back_dic["msg"] = "微信号不能为空"
+    elif len(para["wechat"]) < 6 or len(para["wechat"]) > 20:
+        back_dic["code"] = 1005
+        back_dic["msg"] = "微信号长度不规范"
+    elif len(para["id_number"]) != 18:
+        back_dic["code"] = 1006
+        back_dic["msg"] = "仅支持18位身份证号的输入"
+    elif not ValidationIdNumber(para["id_number"]):
+        back_dic["code"] = 1007
+        back_dic["msg"] = "身份证号校验未通过，请检查并重新输入"
+
     return back_dic
 
 

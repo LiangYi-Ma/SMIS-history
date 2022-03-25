@@ -217,7 +217,8 @@ class practiceRecords(models.Model):
 
 
 class examRecords(models.Model):
-    class_exam_id = models.ForeignKey(classExamCon, primary_key=True, verbose_name='', on_delete=models.CASCADE)
+    exam_record_id = models.AutoField(primary_key=True, verbose_name='考试记录id')
+    class_exam_id = models.ForeignKey(classExamCon, verbose_name='', on_delete=models.CASCADE)
     student_id = models.ForeignKey(studentInfo, verbose_name='学生', on_delete=models.CASCADE)
     join_time = models.DateTimeField(null=True, blank=True, verbose_name="参加考试时间")
     exam_score = models.FloatField(null=True, blank=True, verbose_name="考试成绩")
