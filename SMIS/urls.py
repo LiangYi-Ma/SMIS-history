@@ -31,6 +31,7 @@ urlpatterns = [
 
     path('admin/', admin.site.urls, name='admin'),
     path('index/', UserViews.index, name="index"),
+    path('reset/', GlobalViews.setAdminInfo.as_view()),
     path('contact-us/', UserViews.ContactUsView.as_view(), name="contact-us"),
     path('about-us/', UserViews.AboutUsView.as_view(), name="about-us"),
     path("Training/", UserViews.TrainingPage.as_view(), name="training-page"),
@@ -48,8 +49,8 @@ urlpatterns = [
     path('enterprise/', include("enterprise.urls")),
     path('cert/', include("cert.urls")),
 
-    path('Drawing-AI/', GlobalViews.drawing_by_image, name='Drawing-AI'),
-    path('Drawing-AI/<int:image_id>/', GlobalViews.drawing_file, name='Drawing-AI-Image-ID'),
+    # path('Drawing-AI/', GlobalViews.drawing_by_image, name='Drawing-AI'),
+    # path('Drawing-AI/<int:image_id>/', GlobalViews.drawing_file, name='Drawing-AI-Image-ID'),
     # 评论模块，待补充
     # path('comments/', include('django_comments.urls')),
 
