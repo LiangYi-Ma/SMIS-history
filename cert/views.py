@@ -1,3 +1,6 @@
+import time
+
+import zmail
 from django.shortcuts import render, redirect
 from django.contrib.auth.hashers import make_password
 from django.contrib import auth
@@ -9,6 +12,7 @@ from django.utils.crypto import get_random_string
 from numpy import unicode
 from django.db.models import Q
 from django.core.mail import send_mail, send_mass_mail, EmailMultiAlternatives
+from uuid import uuid4
 
 from user.models import User, PersonalInfo, JobExperience, TrainingExperience, \
     EducationExperience, Evaluation, WxUserPhoneValidation
@@ -2018,6 +2022,146 @@ class updateOnlineStudyRecordsByHand(View):
         res = update_online_study_progress_by_hand(class_id, failed_date)
         back_dic = res
 
+        return JsonResponse(back_dic)
+
+
+# 客服咨询
+class CustomerServiceConsultation(View):
+    def post(self, request):
+        # 身份令牌检测
+        session_dict = session_exist(request)
+        if session_dict["code"] != 1000:
+            return JsonResponse(session_dict)
+        # # 配置数据返回格式
+        back_dic = dict(code=1000, msg="", data=dict())
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        user = User.objects.get(pk=uid)
+        if not user:
+            back_dic["code"] = 10200
+            back_dic["msg"] = "用户不存在"
+            return JsonResponse(back_dic)
+        else:
+            para = json.loads(request.body.decode())
+            number = para['number']
+            text = para['text']
+            message = f'联系电话：{number}\n' \
+                      f'咨询内容：{text}'
+            # 邮箱账号
+            username = 'service@shiyenet.com.cn'
+            # 邮箱授权码
+            authorization_code = 'Hrjd332211'
+            # 构建一个邮箱服务对象
+            uuid = uuid4()
+            server = zmail.server(username, authorization_code)
+            # 邮件主体
+            mail_body = {
+                'subject': f'客服咨询(编号：{uuid})',
+                'content_text': message,  # 纯文本或者HTML内容
+            }
+            # 收件人
+            mail_to = 'talent@shiyenet.com.cn'
+            try:
+                # 发送邮件
+                server.send_mail(mail_to, mail_body)
+                print("发送成功")
+            except Exception as e:
+                print(e)
+                print("发送失败")
+            return JsonResponse(back_dic)
+
+
+# 学生考试信息更新（通过考试id，接第三方平台返回数据更新）
+class StudentExamUpdate(View):
+    def post(self, request):
+        session_dict = session_exist(request)
+        if session_dict["code"] != 1000:
+            return JsonResponse(session_dict)
+        back_dic = dict(code=1000, msg="", data=dict())
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        user = User.objects.get(pk=uid)
+        # 权限校验
+        manager = AuthorityManager(user_obj=user)
+        if not manager.is_staff():
+            back_dic["code"] = 10400
+            back_dic["msg"] = "无权限访问"
+            return JsonResponse(back_dic)
+        # 请求参数
+        para = json.loads(request.body.decode())
+        api_url = "https://api.xiaoe-tech.com/xe.examination.result.list/1.0.0"
+        exam_id = para["exam_id"]
+        page_index = 1
+        continue_flag = True
+        client = XiaoeClient()
+        exam_list = []
+        while continue_flag:
+            params = {
+                "exam_id": exam_id,
+                "page_index": page_index,
+                "page_size": 5
+            }
+            res = client.request("post", api_url, params)
+            sub_exam_list = res["data"]["list"]
+            exam_list.extend(sub_exam_list)
+            if len(exam_list) == res["data"]["total"]:
+                # 跳出循环
+                continue_flag = False
+            else:
+                # 翻页，继续循环
+                page_index += 1
+
+        # 通过考试id查找班级id
+        class_data = classExamCon.objects.using('db_cert').filter(exam_id=exam_id).all()
+        # 通过班级id增加数据更新时间表
+        now_time = time.strftime('%Y-%m-%d', time.localtime())
+        student_list = {}
+        # 往数据更新时间表中插入数据
+        for i in range(len(class_data)):
+            try:
+                udr = updateDateRecords()
+                udr.class_id_id = class_data[i].class_id_id
+                udr.exam_update_date = now_time
+                udr.save(using='db_cert')
+            except Exception as e:
+                back_dic["code"] = 10002
+                back_dic["msg"] = '数据新增失败！'
+                return JsonResponse(back_dic)
+            # 通过班级id查找该班级学生
+            students = classStudentCon.objects.using('db_cert').filter(class_id=class_data[i].class_id_id).all()
+            # 将班级中的学生筛出来
+            for j in range(len(students)):
+                # 因此此时的学生id和学生在小鹅通中的学生id不一致所以需要转变
+                stu = studentInfo.objects.using('db_cert').filter(student_id=students[j].student_id_id).first()
+                # 防止一个学生加入多个班级，造成列表学生重复
+                if stu.xet_id not in student_list:
+                    # 给value拼接上班级考试表中的id，为了之后的考试成绩表的新增数据用,凭借表示为+
+                    # value前半部分为学生的id，value的后半部分为班级考试表的id
+                    student_list[stu.xet_id] = str(students[j].student_id_id) + '+' + str(class_data[i].class_exam_id)
+        # 开始往学生成绩表插入数据
+        for i in range(len(exam_list)):
+            # 判断学生是否在考试涉及到的班级的学生列表中
+            if exam_list[i]['user_id'] in student_list.keys():
+                # 首先判断一下，这条数据是不是已经插入了，如果没有则插入，条件为：班级考试id,和学生id
+                datas = examRecords.objects.using('db_cert') \
+                    .filter(class_exam_id_id=int(student_list[exam_list[i]['user_id']].split('+')[1]),
+                            student_id_id=int(student_list[exam_list[i]['user_id']].split('+')[0])).first()
+                if datas:
+                    continue
+                else:
+                    # 因为考试结果表中的班级考试id不是考试的id，因此需要进行查找转换，上边的拼接就是为了此处不再进行再次查询
+                    try:
+                        examRecords.objects.using('db_cert') \
+                            .create(class_exam_id_id=int(student_list[exam_list[i]['user_id']].split('+')[1]),
+                                    student_id_id=int(student_list[exam_list[i]['user_id']].split('+')[0]),
+                                    join_time=exam_list[i]['commit_time'],
+                                    exam_score=exam_list[i]['score'])
+                    except Exception as e:
+                        back_dic["code"] = 10002
+                        back_dic["msg"] = '数据新增失败！'
+                        return JsonResponse(back_dic)
         return JsonResponse(back_dic)
 
 

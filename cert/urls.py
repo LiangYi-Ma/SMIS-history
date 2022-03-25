@@ -35,5 +35,8 @@ urlpatterns = [
     path('<int:class_id>/join_practice/', practice_views.startPractice.as_view(), name="进入实训"),
     path('student_validation_check/', practice_views.studentValidationCheck.as_view(), name="学员合法性验证"),
     path('upload_practice_result/', practice_views.updatePracticeRecord.as_view(), name="学员实训结果上传"),
-
+    # 客服咨询Post
+    path('consultation/', views.CustomerServiceConsultation.as_view()),
+    # 用户考试结果更新
+    path('student_exam_update/', views.StudentExamUpdate.as_view()),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
