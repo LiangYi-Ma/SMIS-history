@@ -2100,8 +2100,6 @@ class StudentExamUpdate(View):
             back_dic["msg"] = "班级暂无考试！"
             return JsonResponse(back_dic)
         else:
-            print(class_exam.class_exam_id)
-            print(class_exam.exam_id)
             exam_id = class_exam.exam_id
             # 访问小鹅通获取数据
             page_index = 1
