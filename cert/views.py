@@ -2145,28 +2145,21 @@ class StudentExamUpdate(View):
                 if stu.xet_id not in student_list.keys():
                     student_list[stu.xet_id] = students[j].student_id_id
 
-            # 开始往学生成绩表插入数据
+            # 开始往学生成绩表更新数据
             for i in range(len(exam_list)):
                 # 判断学生是否在考试涉及到的班级的学生列表中
                 if exam_list[i]['user_id'] in student_list.keys():
-                    # 首先判断一下，这条数据是不是已经插入了，如果没有则插入，条件为：班级考试id,和学生id
-                    datas = examRecords.objects.using('db_cert') \
-                        .filter(class_exam_id_id=int(class_exam.class_exam_id),
-                                student_id_id=int(student_list[exam_list[i]['user_id']])).first()
-                    if datas:
-                        continue
-                    else:
-                        # 因为考试结果表中的班级考试id不是考试的id，因此需要进行查找转换，上边的拼接就是为了此处不再进行再次查询
-                        try:
-                            examRecords.objects.using('db_cert') \
-                                .create(class_exam_id_id=int(class_exam.class_exam_id),
-                                        student_id_id=int(student_list[exam_list[i]['user_id']]),
-                                        join_time=exam_list[i]['commit_time'],
-                                        exam_score=exam_list[i]['score'])
-                        except Exception as e:
-                            back_dic["code"] = 10002
-                            back_dic["msg"] = '数据新增失败！'
-                            return JsonResponse(back_dic)
+                    # 因为考试结果表中的班级考试id不是考试的id，因此需要进行转换
+                    try:
+                        examRecords.objects.using('db_cert')\
+                            .filter(class_exam_id_id=int(class_exam.class_exam_id),
+                                    student_id_id=int(student_list[exam_list[i]['user_id']])) \
+                            .update(join_time=exam_list[i]['commit_time'],
+                                    exam_score=exam_list[i]['score'])
+                    except Exception as e:
+                        back_dic["code"] = 10002
+                        back_dic["msg"] = '数据更新失败！'
+                        return JsonResponse(back_dic)
             return JsonResponse(back_dic)
 
 
