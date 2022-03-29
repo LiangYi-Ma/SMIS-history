@@ -1415,6 +1415,7 @@ class classDetailsView(View):
             '''未做考试信息展示'''
             related_exam = has_related_exam.first()
             exam_id = related_exam.exam_id
+        #     在小鹅通接口拿考试详细信息，封装给data中返回前端
 
         else:
             data["has_exam_related"] = False
@@ -2033,7 +2034,7 @@ class CustomerServiceConsultation(View):
         if session_dict["code"] != 1000:
             return JsonResponse(session_dict)
         # 配置数据返回格式
-        back_dic = dict(code=1000, msg="", data=dict())
+        back_dic = dict(code=1000, msg="发送成功！", data=dict())
         para = json.loads(request.body.decode())
         number = para['number']
         text = para['text']
@@ -2078,7 +2079,7 @@ class StudentExamUpdate(View):
         session_dict = session_exist(request)
         if session_dict["code"] != 1000:
             return JsonResponse(session_dict)
-        back_dic = dict(code=1000, msg="", data=dict())
+        back_dic = dict(code=1000, msg="数据更新成功", data=dict())
         session_key = request.META.get("HTTP_AUTHORIZATION")
         session = Session.objects.get(session_key=session_key)
         uid = session.get_decoded().get('_auth_user_id')
@@ -2093,6 +2094,7 @@ class StudentExamUpdate(View):
         para = json.loads(request.body.decode())
         api_url = "https://api.xiaoe-tech.com/xe.examination.result.list/1.0.0"
         class_id = para["class_id"]
+        print(class_id)
         # 通过班级id,查找出考试id
         class_exam = classExamCon.objects.using('db_cert').filter(class_id=class_id).first()
         if not class_exam:
@@ -2106,6 +2108,7 @@ class StudentExamUpdate(View):
             continue_flag = True
             client = XiaoeClient()
             exam_list = []
+            print(exam_id)
             while continue_flag:
                 params = {
                     "exam_id": exam_id,
@@ -2113,14 +2116,20 @@ class StudentExamUpdate(View):
                     "page_size": 5
                 }
                 res = client.request("post", api_url, params)
-                sub_exam_list = res["data"]["list"]
-                exam_list.extend(sub_exam_list)
-                if len(exam_list) == res["data"]["total"]:
-                    # 跳出循环
-                    continue_flag = False
+                print(res)
+                if not res['data'] and page_index == 1:
+                    back_dic["code"] = 10004
+                    back_dic["msg"] = "小鹅通考试信息为空！"
+                    return JsonResponse(back_dic)
                 else:
-                    # 翻页，继续循环
-                    page_index += 1
+                    sub_exam_list = res["data"]["list"]
+                    exam_list.extend(sub_exam_list)
+                    if len(exam_list) == res["data"]["total"]:
+                        # 跳出循环
+                        continue_flag = False
+                    else:
+                        # 翻页，继续循环
+                        page_index += 1
 
             # 通过班级id增加数据更新时间表
             now_time = time.strftime('%Y-%m-%d', time.localtime())
