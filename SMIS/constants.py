@@ -259,7 +259,7 @@ CLASS_STATUS = (
 )
 
 CERT_PROGRESS_OPTIONS = (
-    (0, "未完成"),
+    (0, "未达标"),
     (1, "已完成"),
     (2, "已关闭"),
 )
