@@ -98,6 +98,7 @@ class courseInfo(models.Model):
 
 class classInfo(models.Model):
     class_id = models.AutoField(primary_key=True)
+    class_name = models.CharField(max_length=64, default="未命名班级", blank=True, null=True, verbose_name="班级名称")
     class_type = models.IntegerField(choices=constants.CLASS_TYPE, null=True, blank=True, verbose_name="班级类型")
     class_period = models.IntegerField(choices=constants.CLASS_PERIOD, null=True, blank=True, verbose_name="周期类型")
     class_status = models.IntegerField(choices=constants.CLASS_STATUS, null=True, blank=True, verbose_name="班级状态")
@@ -114,12 +115,12 @@ class classInfo(models.Model):
         return str(self.class_id)
 
     def update_class_status(self):
-        now = datetime.datetime.now()
+        now = datetime.datetime.now().date()
         # DateField中存储的是字符串（？）
-        start = datetime.datetime.strptime(self.class_start_date, '%Y-%m-%d')
-        end = datetime.datetime.strptime(self.class_end_date, '%Y-%m-%d')
-        # start = datetime.datetime(self.class_start_date.year, self.class_start_date.month, self.class_start_date.day)
-        # end = datetime.datetime(self.class_end_date.year, self.class_end_date.month, self.class_end_date.day)
+        # start = datetime.datetime.strptime(self.class_start_date, '%Y-%m-%d')
+        # end = datetime.datetime.strptime(self.class_end_date, '%Y-%m-%d')
+        start = datetime.datetime(self.class_start_date.year, self.class_start_date.month, self.class_start_date.day).date()
+        end = datetime.datetime(self.class_end_date.year, self.class_end_date.month, self.class_end_date.day).date()
         if start > now:
             self.class_status = 0
         elif end < now:
@@ -183,6 +184,7 @@ class classStudentCon(models.Model):
                                             verbose_name="实操进度", default=2)
 
     def updateClosed2Uncompleted(self):
+        """将关闭状态置为其他状态"""
         if self.class_id.is_exam_exist and self.exam_progress == 2:
             self.exam_progress = 0
         if self.class_id.is_cert_exist and self.cert_progress == 2:
@@ -191,6 +193,24 @@ class classStudentCon(models.Model):
             self.study_progress = 0
         if self.class_id.is_practice_exist and self.practice_progress == 2:
             self.practice_progress = 0
+        self.save()
+
+    def updateOther2Closed(self):
+        """将其他状态置为关闭状态：修改班级后执行"""
+        if not self.class_id.is_exam_exist:
+            self.exam_progress = 2
+        if not self.class_id.is_cert_exist:
+            self.cert_progress = 2
+        if not self.class_id.is_online_study_exist:
+            self.study_progress = 2
+        if not self.class_id.is_practice_exist:
+            self.practice_progress = 2
+        self.save()
+
+    def updateCertStatus(self):
+        if 0 not in [self.practice_progress, self.study_progress, self.exam_progress]:
+            self.cert_progress = 1
+            self.save()
 
     def __str__(self):
         return str(self.class_id) + "-" + str(self.student_id.student_name)
@@ -210,7 +230,14 @@ class practiceRecords(models.Model):
     latest_update_date = models.DateField(auto_now=True, verbose_name="上次更新日期")
 
     def is_passed(self):
-        return self.practice_score >= self.class_student.class_id.min_practice_score
+        res = False
+        if not self.practice_score:
+            self.practice_score = 0.0
+        if self.practice_score >= self.class_student.class_id.min_practice_score:
+            res = True
+            self.class_student.practice_progress = 1
+            self.class_student.save()
+        return res
 
     class Meta:
         verbose_name_plural = '实训结果记录表'
@@ -224,7 +251,15 @@ class examRecords(models.Model):
     exam_score = models.FloatField(null=True, blank=True, verbose_name="考试成绩")
 
     def is_passed(self):
-        return self.exam_score >= self.class_exam_id.min_score
+        res = False
+        if not self.exam_score:
+            self.exam_score = 0.0
+        if self.exam_score >= self.class_exam_id.min_score:
+            res = True
+            this_class_student = classStudentCon.objects.using("db_cert").get(class_id=self.class_exam_id.class_id, student_id=self.student_id)
+            this_class_student.exam_progress = 1
+            this_class_student.save()
+        return res
 
     class Meta:
         verbose_name_plural = '考试结果记录表'
@@ -237,7 +272,14 @@ class onlineStudyRecords(models.Model):
     latest_time = models.FloatField(verbose_name='上次新增时长（h）', default=0)
 
     def is_passed(self):
-        return self.accumulated_time >= self.class_student.class_id.min_study_time
+        res = False
+        if not self.accumulated_time:
+            self.accumulated_time = 0.0
+        if self.accumulated_time >= self.class_student.class_id.min_study_time:
+            res = True
+            self.class_student.study_progress = 1
+            self.class_student.save()
+        return res
 
     class Meta:
         verbose_name_plural = '线上课时长记录表'

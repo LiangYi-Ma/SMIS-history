@@ -16,6 +16,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from user import views as UserViews
+from SMIS import api_authorization as AuthViews
 # from user.views import LoginView
 from django.conf.urls.static import static, serve
 from django.conf import settings
@@ -39,8 +40,8 @@ urlpatterns = [
     path("compressImageByFile/", UserViews.compressImageByFile, name="compress-Image-by-file"),
 
     # path('login/', UserViews.login, name="login"),
-    path('login/', UserViews.LoginView.as_view(), name="login"),
-    path('login_mobile/', UserViews.LoginMsgView.as_view(), name="login_mobile"),
+    path('login/', AuthViews.LoginView.as_view(), name="login"),
+    path('login_mobile/', AuthViews.LoginByMsgView.as_view(), name="login_mobile"),
     path('login_qiye/', UserViews.LoginEnterPriseView.as_view(), name="login_qiye"),
     path('logout/', UserViews.logout, name="logout"),
     path('register/', UserViews.RegisterView.as_view(), name="register"),

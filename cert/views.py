@@ -1100,6 +1100,7 @@ class classEditionView(View):
             # 班级的基本信息
             class_info = dict(
                 class_id=each_class.class_id,
+                class_name=each_class.class_name,
                 class_type=class_type,
                 class_period=class_period,
                 start_date=str(each_class.class_start_date),
@@ -1135,6 +1136,7 @@ class classEditionView(View):
             # 班级的基本信息
             class_info = dict(
                 class_id=each_class.class_id,
+                class_name=each_class.class_name,
                 class_type=class_type,
                 class_period=class_period,
                 start_date=str(each_class.class_start_date),
@@ -1199,6 +1201,7 @@ class classEditionView(View):
                     '''班级新增'''
                     '''班级是否查重暂未确定，暂未查重'''
                     new_class = classInfo.objects.using("db_cert").create(
+                        class_name=para["class_name"],
                         class_type=para["class_type"],
                         class_period=para["class_period"],
                         class_start_date=para["start_date"],
@@ -1208,6 +1211,11 @@ class classEditionView(View):
                         is_online_study_exist=para["is_online_study_exist"],
                         is_practice_exist=para["is_practice_exist"]
                     )
+                    # 根据属性保存实训、线上课达标标准
+                    if new_class.is_practice_exist:
+                        new_class.min_practice_score = para["min_practice_score"]
+                    if new_class.is_online_study_exist:
+                        new_class.min_study_time = para["min_study_time"]
                     # 根据得到的日期信息更新班级状态
                     new_class.update_class_status()
                     new_class.save()
@@ -1223,10 +1231,11 @@ class classEditionView(View):
                         back_dic["code"] = 10200
                         back_dic["msg"] = "不存在的班级，无法编辑，请重试。"
                         return JsonResponse(back_dic)
-                    '''这里也没有查重，理由同上，未确定怎么查'''
+                    '''班级是否查重暂未确定，暂未查重'''
 
                     '''修改班级信息'''
                     this_class = this_class.first()
+                    this_class.class_name = para["class_name"]
                     this_class.class_type = para["class_type"]
                     this_class.class_period = para["class_period"]
                     this_class.class_start_date = para["start_date"]
@@ -1237,6 +1246,13 @@ class classEditionView(View):
                     this_class.is_practice_exist = para["is_practice_exist"]
                     this_class.update_class_status()
                     this_class.save()
+
+                    # 同步修改班级-学生连接的进度状态
+                    class_student_cons = classStudentCon.objects.using("db_cert").filter(class_id=this_class)
+                    for con in class_student_cons:
+                        con.updateOther2Closed()
+                        con.save()
+
                     back_dic["code"] = 1000
                     back_dic["msg"] = "已修改班级信息。"
                     return JsonResponse(back_dic)
@@ -1305,7 +1321,7 @@ class classDetailsView(View):
         this_class = classInfo.objects.using("db_cert").filter(class_id=class_id)
         if not this_class.exists():
             back_dic["code"] = 10200
-            back_dic["msg"] = "该课程不存在"
+            back_dic["msg"] = "该班级不存在"
             return JsonResponse(back_dic)
 
         # 用户类型检查
@@ -1329,6 +1345,7 @@ class classDetailsView(View):
 
         # 班级的基本信息
         class_info = dict(
+            class_name=this_class.class_name,
             class_type=class_type,
             class_period=class_period,
             start_date=str(this_class.class_start_date),
@@ -1453,7 +1470,8 @@ class classDetailsView(View):
         if edit_type == "101":
             '''新增教师'''
             this_teacher = teacherInfo.objects.using("db_cert").get(teacher_id=para["teacher_id"])
-            exist_already = classTeacherCon.objects.using("db_cert").filter(class_id_id=class_id, teacher_id_id=this_teacher.teacher_id)
+            exist_already = classTeacherCon.objects.using("db_cert").filter(class_id_id=class_id,
+                                                                            teacher_id_id=this_teacher.teacher_id)
             if exist_already.exists():
                 back_dic["code"] = 10300
                 back_dic["msg"] = "该教师已关联过该班级，无法重复关联"
@@ -1541,7 +1559,8 @@ class classDetailsView(View):
                 new_joined.exam_progress = 0
                 this_exam_con = classExamCon.objects.using("db_cert").filter(class_id_id=class_id)
                 this_exam_con = this_exam_con.first()
-                examRecords.objects.using("db_cert").create(class_exam_id_id=this_exam_con.class_exam_id, student_id_id=student_id)
+                examRecords.objects.using("db_cert").create(class_exam_id_id=this_exam_con.class_exam_id,
+                                                            student_id_id=student_id)
             if this_class.is_cert_exist:
                 new_joined.cert_progress = 0
             new_joined.save()
@@ -1572,8 +1591,9 @@ class classDetailsView(View):
             # 删除考试记录，线上课记录、实训记录自动级联删除
             if this_class.is_exam_exist:
                 this_class_exam_con = classExamCon.objects.using("db_cert").get(class_id_id=class_id)
-                exam_record = examRecords.objects.using("db_cert").filter(class_exam_id_id=this_class_exam_con.class_exam_id,
-                                                                          student_id_id=user.id)
+                exam_record = examRecords.objects.using("db_cert").filter(
+                    class_exam_id_id=this_class_exam_con.class_exam_id,
+                    student_id_id=user.id)
                 exam_record.delete()
             back_dic["code"] = 1000
             back_dic["msg"] = "取消报名成功"
@@ -1832,6 +1852,12 @@ class classStudentsManagementView(View):
 
         """main content of this method"""
         class_id = self.kwargs["class_id"]
+        try:
+            this_class = classInfo.objects.using("db_cert").get(class_id=class_id)
+        except:
+            back_dic["code"] = 10200
+            back_dic["msg"] = "不存在的班级"
+            return JsonResponse(back_dic)
         '''管理员检查'''
         if not self.validation_check(user):
             back_dic["code"] = 10400
@@ -1855,6 +1881,36 @@ class classStudentsManagementView(View):
                 practice_progress=student.practice_progress,
                 online_study_progress=student.study_progress,
             )
+            if this_class.is_exam_exist:
+                class_exam = classExamCon.objects.using("db_cert").filter(class_id_id=class_id).first()
+                exam_record = examRecords.objects.using("db_cert").filter(class_exam_id=class_exam,
+                                                                          student_id=student.student_id).first()
+                exam_tag = dict(
+                    join_time=exam_record.join_time,
+                    exam_score=exam_record.exam_score,
+                    pass_line=class_exam.min_score,
+                    is_passed=exam_record.is_passed(),
+                )
+                common_info["exam_tag"] = exam_tag
+            if this_class.is_online_study_exist:
+                study_record = onlineStudyRecords.objects.using("db_cert").filter(class_student=student).first()
+                online_study_tag = dict(
+                    accumulated_hour=study_record.accumulated_time,
+                    lastest_hour=study_record.latest_time,
+                    pass_line=this_class.min_study_time,
+                    is_passed=study_record.is_passed(),
+                )
+                common_info["online_study_tag"] = online_study_tag
+            if this_class.is_practice_exist:
+                practice_record = practiceRecords.objects.using("db_cert").filter(class_student=student).first()
+                practice_tag = dict(
+                    practice_score=practice_record.practice_score,
+                    available_times=practice_record.available_times,
+                    deadline=practice_record.deadline,
+                    pass_line=this_class.min_practice_score,
+                    is_passed=practice_record.is_passed(),
+                )
+                common_info["practice_tag"] = practice_tag
             students_list.append(common_info)
         data["students_list"] = students_list
 
@@ -2160,7 +2216,7 @@ class StudentExamUpdate(View):
                 if exam_list[i]['user_id'] in student_list.keys():
                     # 因为考试结果表中的班级考试id不是考试的id，因此需要进行转换
                     try:
-                        examRecords.objects.using('db_cert')\
+                        examRecords.objects.using('db_cert') \
                             .filter(class_exam_id_id=int(class_exam.class_exam_id),
                                     student_id_id=int(student_list[exam_list[i]['user_id']])) \
                             .update(join_time=exam_list[i]['commit_time'],
@@ -2170,6 +2226,66 @@ class StudentExamUpdate(View):
                         back_dic["msg"] = '数据更新失败！'
                         return JsonResponse(back_dic)
             return JsonResponse(back_dic)
+
+
+class checkIssuingQualificationByClassID(View):
+    def check_one_student(self):
+        res = False
+        return res
+
+    def get(self, request, *args, **kwargs):
+        """
+        1.拿到班级ID class_id
+            1）检查班级是否发放证书，无关联证书则返回错误10200
+        2.提取班级中的学生列表(from classStudentCon)
+        3.根据班级属性检查学生的考试、线上课、实训达标情况，达标置为1；
+        4.更新在学生列表中；
+        5.检查是否已通过，通过则将证书状态置为1。
+        """
+        session_dict = session_exist(request)
+        if session_dict["code"] != 1000:
+            return JsonResponse(session_dict)
+        back_dic = dict(code=1000, msg="", data=dict())
+        data = dict()
+
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        user = User.objects.get(pk=uid)
+
+        # 权限校验
+        manager = AuthorityManager(user_obj=user)
+        if not manager.is_staff():
+            back_dic["code"] = 10400
+            back_dic["msg"] = "无权限访问"
+            return JsonResponse(back_dic)
+
+        # 1.班级id
+        class_id = self.kwargs["class_id"]
+        try:
+            this_class = classInfo.objects.using("db_cert").get(class_id=class_id)
+        except:
+            back_dic["code"] = 10200
+            back_dic["msg"] = "不存在的班级"
+            return JsonResponse(back_dic)
+
+        if not this_class.is_cert_exist:
+            back_dic["code"] = 10200
+            back_dic["msg"] = "班级不涉及证书发放！"
+            return JsonResponse(back_dic)
+
+        # para = json.loads(request.body.decode())
+        """main content of this method"""
+        # 2.学生列表
+        student_queryset = classStudentCon.objects.using("db_cert").filter(class_id_id=class_id)
+        for student in student_queryset:
+            student.updateCertStatus()
+            student.save()
+
+        back_dic["msg"] = "更新成功！"
+
+        back_dic["data"] = data
+        return JsonResponse(back_dic)
 
 
 def default_sentences(self, request, *args, **kwargs):
