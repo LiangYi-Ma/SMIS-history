@@ -1432,11 +1432,25 @@ class classDetailsView(View):
             '''未做考试信息展示'''
             related_exam = has_related_exam.first()
             exam_id = related_exam.exam_id
-        #     在小鹅通接口拿考试详细信息，封装给data中返回前端
-
+            #     在小鹅通接口拿考试详细信息，封装给data中返回前端
+            api_url = 'https://api.xiaoe-tech.com/xe.examination.detail.get/1.0.0'
+            client = XiaoeClient()
+            params = {
+                "id": exam_id
+            }
+            res = client.request("post", api_url, params)
+            exam_list = {}
+            if not res['data']:
+                data['exam_info'] = []
+            else:
+                result = ['name', 'total_question', 'total_score', 'exam_time', 'exam_time', 'exam_end_time']
+                exam_infos = res['data']['exam_info']
+                for key in exam_infos.keys():
+                    if key in result:
+                        exam_list[key] = exam_infos[key]
+                data['exam_info'] = exam_list
         else:
             data["has_exam_related"] = False
-
         back_dic["data"] = data
         return JsonResponse(back_dic)
 
@@ -2285,6 +2299,122 @@ class checkIssuingQualificationByClassID(View):
         back_dic["msg"] = "更新成功！"
 
         back_dic["data"] = data
+        return JsonResponse(back_dic)
+
+
+# 主页
+class HomeCourseCertification(View):
+    # 课程列表，证书列表，即将开班
+    # 不需要session检测
+    def get(self, request):
+        back_dic = dict(code=1000, msg="数据查询成功！", data=dict())
+        # 查找证书列表
+        certification_query = certificationInfo.objects.using("db_cert").order_by('cert_name', 'cert_level').all()[:8]
+        if certification_query:
+            result = []
+            for i in range(len(certification_query)):
+                ls = {}
+                ls['cert_id'] = certification_query[i].cert_id
+                ls['cert_name'] = str(certification_query[i].cert_name)
+                ls['cert_sample'] = str(certification_query[i].cert_sample)
+                result.append(ls)
+            back_dic['data']['cert_list'] = result
+        else:
+            back_dic['data']['cert_list'] = []
+        # 查找课程列表
+        all_course = courseInfo.objects.using("db_cert").order_by("course_direction", "course_type").all()[:8]
+        if all_course:
+            result = []
+            for i in range(len(all_course)):
+                ls = {}
+                ls['course_id'] = all_course[i].course_id
+                ls['course_name'] = str(all_course[i].course_name)
+                ls['course_price'] = str(all_course[i].course_price)
+                ls['course_true_price'] = str(all_course[i].course_true_price)
+                ls['ads_picture'] = str(all_course[i].ads_picture)
+                result.append(ls)
+            back_dic['data']['course_list'] = result
+        else:
+            back_dic['data']['course_list'] = []
+        # 即将开班班级列表
+        class_list = classInfo.objects.using("db_cert").filter(class_status=0).order_by('class_start_date').all()[:7]
+        if class_list:
+            result = []
+            for i in range(len(class_list)):
+                ls = {}
+                # 在班级课程证书表查找课程和证书id
+                classcoursecertcon = classCourseCertCon.objects.using("db_cert") \
+                    .filter(class_id=class_list[i].class_id).first()
+                if classcoursecertcon:
+                    # 将证书id转化成证书名称
+                    certificationinfo = certificationInfo.objects.using('db_cert').filter(
+                        cert_id=classcoursecertcon.cert_id_id).first()
+                    ls['cert_name'] = certificationinfo.cert_name
+                    # 将课程id转化成课程名称
+                    courseinfo = courseInfo.objects.using('db_cert').filter(
+                        course_id=classcoursecertcon.course_id_id).first()
+                    ls['course_name'] = courseinfo.course_name
+                ls['class_id'] = class_list[i].class_id
+                ls['class_name'] = class_list[i].class_name
+                ls['class_start_date'] = str(class_list[i].class_start_date)
+                ls['class_end_date'] = str(class_list[i].class_end_date)
+                result.append(ls)
+            back_dic['data']['class_list'] = result
+        else:
+            back_dic['data']['class_list'] = []
+        return JsonResponse(back_dic)
+
+
+class CertificationDetail(View):
+    # 证书详情
+    # 不进行用户身份检测,只做登陆检测
+    def get(self, request):
+        session_dict = session_exist(request)
+        if session_dict["code"] != 1000:
+            return JsonResponse(session_dict)
+        back_dic = dict(code=1000, msg="数据查找成功", data=dict())
+        para = json.loads(request.body.decode())
+        cert_id = para["cert_id"]
+        certificationinfo  = certificationInfo.objects.using('db_cert').filter(cert_id=cert_id).first()
+        if certificationinfo:
+            back_dic['data']['cert_id'] = certificationinfo.cert_id
+            back_dic['data']['cert_name'] = str(certificationinfo.cert_name)
+            back_dic['data']['cert_level'] = str(certificationinfo.cert_level)
+            back_dic['data']['issuing_unit'] = str(certificationinfo.issuing_unit)
+            back_dic['data']['cert_introduction'] = str(certificationinfo.cert_introduction)
+            back_dic['data']['testing_way'] = str(certificationinfo.testing_way)
+            back_dic['data']['aim_people'] = str(certificationinfo.aim_people)
+            back_dic['data']['cor_positions'] = str(certificationinfo.cor_positions)
+            back_dic['data']['cert_sample'] = str(certificationinfo.cert_sample)
+            back_dic['data']['expiry_date'] = str(certificationinfo.expiry_date)
+        else:
+            back_dic['code'] = 10005
+            back_dic['msg'] = '证书信息不存在!'
+        return JsonResponse(back_dic)
+
+
+class CourseDetail(View):
+    # 课程详情
+    # 不进行用户身份检测,只做登陆检测
+    def get(self, request):
+        session_dict = session_exist(request)
+        if session_dict["code"] != 1000:
+            return JsonResponse(session_dict)
+        back_dic = dict(code=1000, msg="数据查找成功", data=dict())
+        para = json.loads(request.body.decode())
+        course_id = para["course_id"]
+        courseinfo = courseInfo.objects.using('db_cert').filter(course_id=course_id).first()
+        if courseinfo:
+            back_dic['data']['course_id'] = courseinfo.course_id
+            back_dic['data']['course_name'] = courseinfo.course_name
+            back_dic['data']['course_direction'] = courseinfo.course_direction
+            back_dic['data']['course_type'] = courseinfo.course_type
+            back_dic['data']['course_price'] = courseinfo.course_price
+            back_dic['data']['course_true_price'] = courseinfo.course_true_price
+            back_dic['data']['ads_picture'] = str(courseinfo.ads_picture)
+        else:
+            back_dic['code'] = 10006
+            back_dic['msg'] = '课程信息不存在!'
         return JsonResponse(back_dic)
 
 
