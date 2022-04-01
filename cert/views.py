@@ -1441,9 +1441,7 @@ class classDetailsView(View):
             res = client.request("post", api_url, params)
             exam_list = {}
             if not res['data']:
-                back_dic["code"] = 10004
-                back_dic["msg"] = "小鹅通考试信息为空！"
-                return JsonResponse(back_dic)
+                data['exam_info'] = []
             else:
                 result = ['name', 'total_question', 'total_score', 'exam_time', 'exam_time', 'exam_end_time']
                 exam_infos = res['data']['exam_info']

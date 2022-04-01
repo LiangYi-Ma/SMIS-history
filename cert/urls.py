@@ -51,7 +51,7 @@ urlpatterns = [
     # 用户考试结果更新
     path('student_exam_update/', views.StudentExamUpdate.as_view()),
     # 主页GET
-    path('home/', views.HomeCourseCertification.as_view()),
+    path('index_frontend/', views.HomeCourseCertification.as_view()),
     # 证书详情
     path('certification_detail/', views.CertificationDetail.as_view()),
     # 课程详情
