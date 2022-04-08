@@ -33,7 +33,7 @@ def index(request):
         print("当前登陆用户：", user.username)
         is_log_in = True
     except:
-        JsonResponse(dict(code=10, msg="匿名用户"))
+        return JsonResponse(dict(code=10, msg="匿名用户"))
 
     pst_all = []
     for pst in all_pst_classes:
@@ -54,9 +54,13 @@ def index(request):
         enterprise_id = post.enterprise.id
         tags_chosen = TaggedWhatever.objects.filter(object_id=int(enterprise_id.id))
         tags_existed_ids = [tg.tag.slug for tg in tags_chosen]
-        tags_rd = rd.sample(tags_existed_ids, 3)
+        if len(tags_existed_ids) >= 3:
+            tags_rd = rd.sample(tags_existed_ids, 3)
+        elif len(tags_existed_ids) == 0:
+            tags_rd = []
+        else:
+            tags_rd = tags_existed_ids
         pst_dict = dict()
-
         pst_dict["id"] = rcm.id
         pst_dict["image"] = str(post.enterprise.logo)
         pst_dict["pst_title"] = post.name()
@@ -70,7 +74,7 @@ def index(request):
         pst_dict["labels"] = tags_rd
 
         position_list.append(pst_dict)
-
+    partner_logo = ''
     import os
     for root_name, b, children in os.walk("static/img/sys-img/ptn/"):
         partner_logo = dict(root_name=root_name, children=children)
