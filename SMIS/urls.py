@@ -15,7 +15,6 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from user import views as UserViews
 from SMIS import api_authorization as AuthViews
 # from user.views import LoginView
 from django.conf.urls.static import static, serve
@@ -29,22 +28,13 @@ urlpatterns = [
     path("", TemplateView.as_view(template_name="index.html")),
     # path('static/', serve,
     #      {'document_root': settings.STATIC_ROOT}, name='static'),
-
+    path('', include('SMIS.user_urls')),
     path('admin/', admin.site.urls, name='admin'),
-    path('index/', UserViews.index, name="index"),
     path('reset/', GlobalViews.setAdminInfo.as_view()),
-    path('contact-us/', UserViews.ContactUsView.as_view(), name="contact-us"),
-    path('about-us/', UserViews.AboutUsView.as_view(), name="about-us"),
-    path("Training/", UserViews.TrainingPage.as_view(), name="training-page"),
-    path("compressImage/", UserViews.compressImage, name="compress-Image"),
-    path("compressImageByFile/", UserViews.compressImageByFile, name="compress-Image-by-file"),
 
     # path('login/', UserViews.login, name="login"),
     path('login/', AuthViews.LoginView.as_view(), name="login"),
     path('login_mobile/', AuthViews.LoginByMsgView.as_view(), name="login_mobile"),
-    path('login_qiye/', UserViews.LoginEnterPriseView.as_view(), name="login_qiye"),
-    path('logout/', UserViews.logout, name="logout"),
-    path('register/', UserViews.RegisterView.as_view(), name="register"),
     path('cv/', include('cv.urls')),
     path('user/', include('user.urls')),
     path('enterprise/', include("enterprise.urls")),
@@ -57,8 +47,6 @@ urlpatterns = [
 
     # path('wechat/', WxViews.serve),
     # path('user/info/', WxViews.get_wx_user_info),
-    path('wechat/', UserViews.LoginWxView.as_view())
 
 ]
 urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
-
