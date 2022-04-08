@@ -15,7 +15,6 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from user import views as UserViews
 from SMIS import api_authorization as AuthViews
 # from user.views import LoginView
 from django.conf.urls.static import static, serve
@@ -23,28 +22,19 @@ from django.conf import settings
 from SMIS import views as GlobalViews
 from django.views.generic import TemplateView
 from user import api_wx as WxViews
+from SMIS import user_view as UserViews
 
 urlpatterns = [
 
     path("", TemplateView.as_view(template_name="index.html")),
     # path('static/', serve,
     #      {'document_root': settings.STATIC_ROOT}, name='static'),
-
     path('admin/', admin.site.urls, name='admin'),
-    path('index/', UserViews.index, name="index"),
     path('reset/', GlobalViews.setAdminInfo.as_view()),
-    path('contact-us/', UserViews.ContactUsView.as_view(), name="contact-us"),
-    path('about-us/', UserViews.AboutUsView.as_view(), name="about-us"),
-    path("Training/", UserViews.TrainingPage.as_view(), name="training-page"),
-    path("compressImage/", UserViews.compressImage, name="compress-Image"),
-    path("compressImageByFile/", UserViews.compressImageByFile, name="compress-Image-by-file"),
 
     # path('login/', UserViews.login, name="login"),
     path('login/', AuthViews.LoginView.as_view(), name="login"),
     path('login_mobile/', AuthViews.LoginByMsgView.as_view(), name="login_mobile"),
-    path('login_qiye/', UserViews.LoginEnterPriseView.as_view(), name="login_qiye"),
-    path('logout/', UserViews.logout, name="logout"),
-    path('register/', UserViews.RegisterView.as_view(), name="register"),
     path('cv/', include('cv.urls')),
     path('user/', include('user.urls')),
     path('enterprise/', include("enterprise.urls")),
@@ -57,8 +47,16 @@ urlpatterns = [
 
     # path('wechat/', WxViews.serve),
     # path('user/info/', WxViews.get_wx_user_info),
-    path('wechat/', UserViews.LoginWxView.as_view())
+    path('index/', UserViews.index, name="index"),  # 返回问题加报错
+    path('contact-us/', UserViews.ContactUsView.as_view(), name="contact-us"),  # 完成
+    path('about-us/', UserViews.AboutUsView.as_view(), name="about-us"),  # 完成
+    path("Training/", UserViews.TrainingPage.as_view(), name="training-page"),  # 完成
+    path("compressImage/", UserViews.compressImage, name="compress-Image"),  # 完成
+    path("compressImageByFile/", UserViews.compressImageByFile, name="compress-Image-by-file"),  # 完成
+    path('login_qiye/', UserViews.LoginEnterPriseView.as_view(), name="login_qiye"),  # 完成
+    path('logout/', UserViews.logout, name="logout"),  # 完成
+    path('register/', UserViews.RegisterView.as_view(), name="register"),  # 完成
+    path('wechat/', UserViews.LoginWxView.as_view())  # 报错
 
 ]
 urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
-
