@@ -68,6 +68,7 @@ def update_online_study_progress():
     :return: 无
     """
     class_list = get_class_id_list_daily()
+    print(">>>>待更新班级：", class_list)
     for each_class in class_list:
         xet_student_dic = get_xet_list_by_class_id(each_class)
         xet_list = xet_student_dic.keys()
@@ -75,6 +76,7 @@ def update_online_study_progress():
         res, res_list = get_study_info_by_list(xet_list, date)
         if res:
             '''请求成功'''
+            print(">>>yeah")
             for record in res_list:
                 if record["user_id"] in xet_student_dic.keys():
                     c_s_id = xet_student_dic[record["user_id"]]
@@ -87,6 +89,7 @@ def update_online_study_progress():
                         this_record.save()
         else:
             '''请求失败'''
+            print(">>>non")
             failed_date = datetime.datetime.now() - datetime.timedelta(days=1)
             failedUpdateRecords.objects.using("db_cert").create(class_id_id=each_class, failed_date=failed_date,
                                                                 is_updated=0)

@@ -1928,6 +1928,13 @@ class classStudentsManagementView(View):
             students_list.append(common_info)
         data["students_list"] = students_list
 
+        '''更新失败时间'''
+        failed_dates = []
+        failed_update_date_queryset = failedUpdateRecords.objects.using("db_cert").filter(class_id_id=class_id, is_updated=False)
+        for failed_record in failed_update_date_queryset:
+            failed_dates.append(failed_record.failed_date)
+        data["failed_dates"] = failed_dates
+
         # 对照映射
         validation_map = []
         for idx, label in constants.XET_VALIDATION:
@@ -2308,6 +2315,21 @@ class HomeCourseCertification(View):
     # 不需要session检测
     def get(self, request):
         back_dic = dict(code=1000, msg="数据查询成功！", data=dict())
+        session_dict = session_exist(request)
+        if session_dict["code"] != 1000:
+            back_dic["data"]["is_login"] = False
+            back_dic["data"]["is_staff"] = None
+        else:
+            back_dic["data"]["is_login"] = True
+
+            session_key = request.META.get("HTTP_AUTHORIZATION")
+            session = Session.objects.get(session_key=session_key)
+            uid = session.get_decoded().get('_auth_user_id')
+            user = User.objects.get(pk=uid)
+
+            manager = AuthorityManager(user)
+            back_dic["data"]["is_staff"] = manager.is_staff()
+
         # 查找证书列表
         certification_query = certificationInfo.objects.using("db_cert").order_by('cert_name', 'cert_level').all()[:8]
         if certification_query:
