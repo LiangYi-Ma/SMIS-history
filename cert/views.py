@@ -1721,7 +1721,10 @@ class examListSearch(View):
         return JsonResponse(back_dic)
 
 
-class studentDetailsView(View):
+class studentDetailsByIDView(View):
+    """
+    仅限管理员访问，用学员ID查询学员详细信息
+    """
     def get(self, request, *args, **kwargs):
         session_dict = session_exist(request)
         if session_dict["code"] != 1000:
@@ -1736,9 +1739,11 @@ class studentDetailsView(View):
 
         """main content of this method"""
         student_id = self.kwargs["student_id"]
-        if (not user.is_staff) and (user.id != student_id):
+        # 仅限管理员访问
+        manager = AuthorityManager(user_obj=user)
+        if not manager.is_staff():
             back_dic["code"] = 10400
-            back_dic["msg"] = "你无法查看其他学员的信息"
+            back_dic["msg"] = "无权限访问"
             return JsonResponse(back_dic)
 
         try:
@@ -1747,6 +1752,14 @@ class studentDetailsView(View):
             back_dic["code"] = 10200
             back_dic["msg"] = "该学生不存在，请检查url"
             return JsonResponse(back_dic)
+        student_info = dict(
+            student_id=this_student.student_id,
+            name=this_student.student_name,
+            phone_number=this_student.phone_number,
+            wechat=this_student.wechat_openid,
+            id_number=this_student.id_number,
+            sex=this_student.sex
+        )
 
         # 已经完成注册（当然）
         has_signed = True
@@ -1809,12 +1822,20 @@ class studentDetailsView(View):
         data["has_certificated"] = has_certificated
         data["has_joined"] = has_joined
 
+        data["student_info"] = student_info
+
         data["joined_list"] = class_joined_list
 
         back_dic["data"] = data
         return JsonResponse(back_dic)
 
-    def post(self, request, *args, **kwargs):
+
+class studentDetailsBySessionView(View):
+    """
+    仅限学员自己访问，用session信息查询学员详细信息
+    """
+
+    def get(self, request, *args, **kwargs):
         session_dict = session_exist(request)
         if session_dict["code"] != 1000:
             return JsonResponse(session_dict)
@@ -1826,18 +1847,90 @@ class studentDetailsView(View):
         uid = session.get_decoded().get('_auth_user_id')
         user = User.objects.get(pk=uid)
 
-        student_id = self.kwargs["student_id"]
+        """main content of this method"""
+        student_id = user.id
+        # 仅限管理员访问
+        manager = AuthorityManager(user_obj=user)
+
         try:
             this_student = studentInfo.objects.using("db_cert").get(student_id=student_id)
         except:
             back_dic["code"] = 10200
-            back_dic["msg"] = "该学生不存在，请检查url"
+            back_dic["msg"] = "该学生不存在"
             return JsonResponse(back_dic)
+        student_info = dict(
+            student_id=this_student.student_id,
+            name=this_student.student_name,
+            phone_number=this_student.phone_number,
+            wechat=this_student.wechat_openid,
+            id_number=this_student.id_number,
+            sex=this_student.sex
+        )
 
-        para = json.loads(request.body.decode())
-        edit_type = para["type"]
+        # 已经完成注册（当然）
+        has_signed = True
 
-        """main content of this method"""
+        # 已完成小鹅通认证
+        if this_student.is_valid == 1:
+            has_certificated = True
+        else:
+            has_certificated = False
+
+        # 已报名
+        """需要检查class-student表"""
+        joined_list = classStudentCon.objects.using("db_cert").filter(student_id_id=student_id)
+        if joined_list.exists():
+            has_joined = True
+        else:
+            has_joined = False
+
+        # 报名列表
+        class_joined_list = []
+        if has_joined:
+            for each_joined in joined_list:
+                info = dict()
+                info["class_id"] = each_joined.class_id_id
+                class_student_con_id = each_joined.class_student_id
+                class_status = ""
+                for k, v in constants.CLASS_STATUS:
+                    if k == each_joined.class_id.class_status:
+                        class_status = v
+
+                info["class_info"] = dict(
+                    start_date=each_joined.class_id.class_start_date,
+                    end_date=each_joined.class_id.class_end_date,
+                    class_status=class_status,
+                )
+
+                study_progress = ""
+                exam_progress = ""
+                cert_progress = ""
+                practice_progress = ""
+                for k, v in constants.CERT_PROGRESS_OPTIONS:
+                    if each_joined.practice_progress == k:
+                        practice_progress = v
+                    if each_joined.cert_progress == k:
+                        cert_progress = v
+                    if each_joined.exam_progress == k:
+                        exam_progress = v
+                    if each_joined.study_progress == k:
+                        study_progress = v
+
+                info["study_progress"] = study_progress
+                info["practice_progress"] = practice_progress
+                info["exam_progress"] = exam_progress
+                info["cert_progress"] = cert_progress
+                info["class_details_url"] = "cert/" + str(each_joined.class_id_id) + "/class_details/"
+
+                class_joined_list.append(info)
+
+        data["has_signed"] = has_signed
+        data["has_certificated"] = has_certificated
+        data["has_joined"] = has_joined
+
+        data["student_info"] = student_info
+
+        data["joined_list"] = class_joined_list
 
         back_dic["data"] = data
         return JsonResponse(back_dic)

@@ -37,7 +37,8 @@ urlpatterns = [
     # 班级学员管理
     path('<int:class_id>/students_management/', views.classStudentsManagementView.as_view()),
     # 学员详情
-    path('<int:student_id>/student_details/', views.studentDetailsView.as_view()),
+    path('<int:student_id>/student_details/', views.studentDetailsByIDView.as_view(),name="根据学员ID查询学员详细信息"),
+    path('my_details/', views.studentDetailsBySessionView.as_view(), name="根据session查询学员详细信息"),
     # 补更新线上课学习时间
     path('<int:class_id>/update_online_study_record_by_hand/', views.updateOnlineStudyRecordsByHand.as_view()),
     # 参与实训
