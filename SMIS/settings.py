@@ -262,5 +262,5 @@ EMAIL_USER_TLS = True
 '''定时任务设置'''
 # 每天12点开始更新班级里的学习时长
 CRONJOBS = [
-    ('28 17 * * *', 'cert.api_crontab.update_online_study_progress'),
+    ('24 18 * * *', 'cert.api_crontab.update_online_study_progress'),
 ]
