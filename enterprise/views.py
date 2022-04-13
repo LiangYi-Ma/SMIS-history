@@ -27,39 +27,13 @@ from SMIS.mapper import PositionClassMapper, UserMapper, PersonalInfoMapper, Eva
 import random
 import json
 import datetime
+from SMIS.validation import session_exist
 
 # Create your views here.
 
 logo_image_white = "img/logo_white.jpg"
 logo_image_color = "img/logo_prise.png"
 logo_only_color = "img/logo_favicon.png"
-
-
-def session_exist(request):
-    # session_key = request.session.session_key
-    session_key = request.META.get("HTTP_AUTHORIZATION")
-    print("*****", request.META.get("HTTP_AUTHORIZATION"))
-    back_dir = dict(code=1000, msg="", data=dict())
-    try:
-        is_existed = Session.objects.get(session_key__exact=session_key)
-        if is_existed and is_existed.expire_date <= datetime.datetime.now():
-            back_dir["code"] = 0
-            back_dir["msg"] = "session[" + is_existed.session_key + "]已失效"
-            request.session.flush()
-    except:
-        if session_key:
-            back_dir["code"] = 0
-            back_dir["msg"] = "session[" + session_key + "]未被检测到"
-        else:
-            back_dir["code"] = 0
-            back_dir["msg"] = "接收到的session_key为空"
-
-    # 判断 session_key是否存在
-    # if not is_existed:
-    #     back_dir["code"] = 0
-    #     back_dir["msg"] = "未检测到session或session已失效"
-    #     request.session.flush()
-    return back_dir
 
 
 class EnterpriseIndexView(TemplateView):
@@ -508,6 +482,23 @@ class HRPageView(View):
 
 
 class PositionsPageView(View):
+    def edit_positions(para):
+        dic = {
+            'code': 1000,
+            'msg': '',
+            'url': ''
+        }
+        if para["type"] == "201":
+            dic = position_info_is_valid(para)
+        elif para["type"] in ["202", "101"]:
+            dic = position_post_is_valid(para)
+        elif para["type"] in ["203", "103"]:
+            pass
+        elif para["type"] == "000":
+            dic = position_info_is_valid(para)
+        else:
+            dic["msg"] = "如果你看到这句话，说明type可能传错了，速速联系小孟"
+        return dic
 
     def get(self, request, *args, **kwargs):
         session_dict = session_exist(request)
@@ -597,7 +588,7 @@ class PositionsPageView(View):
         user = User.objects.get(pk=uid)
 
         para = json.loads(request.body.decode())
-        back_dic = edit_positions(para)
+        back_dic = self.edit_positions(para)
         print("参数", para)
 
         this_enterprise_info = user.enterpriseinfo
@@ -632,8 +623,8 @@ class PositionsPageView(View):
         elif para["type"] == "103" and back_dic["code"] == 1000:
             # 删除岗位
             have_posted = Recruitment.objects.filter(enterprise=this_enterprise_info,
-                                                      position__id=int(para["id"]),
-                                                      is_closed=False)
+                                                     position__id=int(para["id"]),
+                                                     is_closed=False)
             if have_posted:
                 back_dir["code"] = 10031
                 back_dir["msg"] = "当前岗位正在发布中，请先撤销或完成你的招聘动作"
@@ -684,25 +675,6 @@ class PositionsPageView(View):
             back_dir = back_dic
         back_dir["data"] = data
         return JsonResponse(back_dir, safe=False, json_dumps_params={'ensure_ascii': False})
-
-
-def edit_positions(para):
-    dic = {
-        'code': 1000,
-        'msg': '',
-        'url': ''
-    }
-    if para["type"] == "201":
-        dic = position_info_is_valid(para)
-    elif para["type"] in ["202", "101"]:
-        dic = position_post_is_valid(para)
-    elif para["type"] in ["203", "103"]:
-        pass
-    elif para["type"] == "000":
-        dic = position_info_is_valid(para)
-    else:
-        dic["msg"] = "如果你看到这句话，说明type可能传错了，速速联系小孟"
-    return dic
 
 
 def service_page(request):

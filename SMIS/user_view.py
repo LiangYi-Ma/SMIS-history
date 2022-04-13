@@ -4,7 +4,7 @@ from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic.base import View
 
-from user.views import open_and_compress, ValidateEmail
+from SMIS.validation import ValidateEmail
 from user.models import User, PersonalInfo
 from enterprise.models import Field, NumberOfStaff, Recruitment, EnterpriseInfo, Applications, Position, PositionClass
 from django.contrib.sessions.models import Session
@@ -18,6 +18,32 @@ from PIL import Image
 from SMIS.constants import JOB_NATURE_CHOICES, YEAR_CHOICES
 from SMIS.mapper import PositionClassMapper, UserMapper
 from SMIS.validation import is_null
+
+
+def open_and_compress(img_path):
+    try:
+        image = Image.open(img_path)
+
+        width = image.width
+        height = image.height
+        rate = 1.0  # 压缩率
+
+        # 根据图像大小设置压缩率
+        if width >= 2000 or height >= 2000:
+            rate = 0.3
+        elif width >= 1000 or height >= 1000:
+            rate = 0.5
+        elif width >= 500 or height >= 500:
+            rate = 0.9
+
+        width = int(width * rate)  # 新的宽
+        height = int(height * rate)  # 新的高
+
+        image.thumbnail((width, height), Image.ANTIALIAS)  # 生成缩略图
+        # image.save('media/' + str(cp.picture), 'JPEG')  # 保存到原路径
+        image.save(str(img_path), 'JPEG')
+    except:
+        return False
 
 
 def index(request):
@@ -456,3 +482,16 @@ class LoginWxView(APIView):
                                          key=key, s_key=session_k))
             else:
                 return JsonResponse(dict(code=1002, msg="无效的code"))
+
+
+def getAllPicturesInStatic(request):
+    import os
+    all = []
+    for root_name, b, children in os.walk("static/img/"):
+        try:
+            partner_logo = dict(root_name=root_name, children=children)
+        except:
+            continue
+        all.append(partner_logo)
+    all = dict(all=all)
+    return JsonResponse(all)

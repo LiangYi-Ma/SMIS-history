@@ -16,7 +16,7 @@ from enterprise.models import SettingChineseTag, TaggedWhatever
 
 import datetime
 import json
-from cv.views import calculate_age
+from SMIS.validation import calculate_age
 import re
 import random as rd
 import numpy as np
@@ -31,112 +31,12 @@ from SMIS.constants import EDUCATION_LEVELS, JOB_NATURE_CHOICES, NATURE_CHOICES,
 from SMIS.mapper import PositionClassMapper, UserMapper, PersonalInfoMapper, EvaMapper, CvMapper, JobExMapper, \
     EduExMapper, TraExMapper, FieldMapper, RecruitmentMapper, EnterpriseInfoMapper, ApplicationsMapper, PositionMapper, \
     NumberOfStaffMapper
+from SMIS.validation import session_exist
+from SMIS.validation import split_q
 from SMIS.validation import is_null
-
-
+from SMIS.validation import ValidateEmail
+from SMIS.validation import is_number
 # Create your views here.
-
-
-# 判断session 是否过期
-def session_exist(request):
-    # session_key = request.session.session_key
-    session_key = request.META.get("HTTP_AUTHORIZATION")
-    print("*****", request.META.get("HTTP_AUTHORIZATION"))
-    for k, v in request.META.items():
-        print("> ", k, ":", v)
-    back_dir = dict(code=1000, msg="", data=dict())
-    try:
-        is_existed = Session.objects.get(session_key__exact=session_key)
-        if is_existed and is_existed.expire_date <= datetime.datetime.now():
-            back_dir["code"] = 0
-            back_dir["msg"] = "session[" + is_existed.session_key + "]已失效"
-            request.session.flush()
-    except:
-        if session_key:
-            back_dir["code"] = 0
-            back_dir["msg"] = "session[" + session_key + "]未被检测到"
-        else:
-            back_dir["code"] = 0
-            back_dir["msg"] = "接收到的session_key为空"
-
-    # 判断 session_key是否存在
-    # if not is_existed:
-    #     back_dir["code"] = 0
-    #     back_dir["msg"] = "未检测到session或session已失效"
-    #     request.session.flush()
-    return back_dir
-
-
-def ValidateEmail(email):
-    from django.core.validators import validate_email
-    from django.core.exceptions import ValidationError
-    try:
-        validate_email(email)
-        return True
-    except ValidationError:
-        return False
-
-
-def is_number(num):
-    """
-    判断字符串是否为全由数字组成，包括整数和浮点数
-    num：string类型
-    """
-    pattern = re.compile(r'^[-+]?[-0-9]\d*\.\d*|[-+]?\.?[0-9]\d*$')
-    result = pattern.match(num)
-    if result:
-        return True
-    else:
-        return False
-
-
-def split_q(q):
-    length = len(list(q))
-    splited_list = []
-    for i in range(length):
-        splited_list.append(q[0: i + 1])
-        if q[i + 1:] != '':
-            splited_list.append(q[i + 1:])
-    return splited_list
-
-
-def getAllPicturesInStatic(request):
-    import os
-    all = []
-    for root_name, b, children in os.walk("static/img/"):
-        try:
-            partner_logo = dict(root_name=root_name, children=children)
-        except:
-            continue
-        all.append(partner_logo)
-    all = dict(all=all)
-    return JsonResponse(all)
-
-
-def open_and_compress(img_path):
-    try:
-        image = Image.open(img_path)
-
-        width = image.width
-        height = image.height
-        rate = 1.0  # 压缩率
-
-        # 根据图像大小设置压缩率
-        if width >= 2000 or height >= 2000:
-            rate = 0.3
-        elif width >= 1000 or height >= 1000:
-            rate = 0.5
-        elif width >= 500 or height >= 500:
-            rate = 0.9
-
-        width = int(width * rate)  # 新的宽
-        height = int(height * rate)  # 新的高
-
-        image.thumbnail((width, height), Image.ANTIALIAS)  # 生成缩略图
-        # image.save('media/' + str(cp.picture), 'JPEG')  # 保存到原路径
-        image.save(str(img_path), 'JPEG')
-    except:
-        return False
 
 
 from django.db.models import Q
