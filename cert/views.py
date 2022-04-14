@@ -24,7 +24,7 @@ from enterprise.models import SettingChineseTag, TaggedWhatever
 
 import datetime
 import json
-from cv.views import calculate_age
+from SMIS.validation import calculate_age
 import re
 import random as rd
 import numpy as np
@@ -44,33 +44,10 @@ from SMIS import settings
 from cert.api_xet_client import XiaoeClient
 from SMIS.api_authority_manager import AuthorityManager
 from cert.api_crontab import update_online_study_progress_by_hand
+from SMIS.validation import session_exist
 
 
 # Create your views here.
-
-
-# 判断session 是否过期
-def session_exist(request):
-    # session_key = request.session.session_key
-    session_key = request.META.get("HTTP_AUTHORIZATION")
-    print("*****", request.META.get("HTTP_AUTHORIZATION"))
-    for k, v in request.META.items():
-        print("> ", k, ":", v)
-    back_dir = dict(code=1000, msg="", data=dict())
-    try:
-        is_existed = Session.objects.get(session_key__exact=session_key)
-        # if is_existed and is_existed.expire_date <= datetime.datetime.now():
-        #     back_dir["code"] = 0
-        #     back_dir["msg"] = "session[" + is_existed.session_key + "]已失效"
-        #     request.session.flush()
-    except:
-        if session_key:
-            back_dir["code"] = 0
-            back_dir["msg"] = "session[" + session_key + "]未被检测到"
-        else:
-            back_dir["code"] = 0
-            back_dir["msg"] = "接收到的session_key为空"
-    return back_dir
 
 
 class registerStudentView(View):
