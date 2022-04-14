@@ -1305,33 +1305,19 @@ class classDetailsView(View):
         data["is_staff"] = user.is_staff or user.is_superuser
 
         this_class = this_class.first()
-        class_type = ""
-        for k, v in constants.CLASS_TYPE:
-            if this_class.class_type == k:
-                class_type = v
-
-        class_period = ""
-        for k, v in constants.CLASS_PERIOD:
-            if this_class.class_period == k:
-                class_period = v
-
-        class_status = ""
-        for k, v in constants.CLASS_STATUS:
-            if this_class.class_status == k:
-                class_status = v
 
         # 班级的基本信息
         class_info = dict(
             class_name=this_class.class_name,
-            class_type=class_type,
-            class_period=class_period,
+            class_type=this_class.class_type,
+            class_period=this_class.class_period,
             start_date=str(this_class.class_start_date),
             end_date=str(this_class.class_end_date),
             has_exam=this_class.is_exam_exist,
             has_practice=this_class.is_practice_exist,
             has_cert=this_class.is_cert_exist,
             has_online_study=this_class.is_online_study_exist,
-            class_status=class_status
+            class_status=this_class.class_status
         )
         data["class_info"] = class_info
 
@@ -1357,19 +1343,12 @@ class classDetailsView(View):
             course_cert_obj = course_cert_set.first()
             '''关联的课程'''
             this_course = course_cert_obj.course_id
-            course_direction = ""
-            for k, v in constants.COURSE_DIRECTION:
-                if k == this_course.course_direction:
-                    course_direction = v
-            course_type = ""
-            for k, v in constants.COURSE_TYPE:
-                if k == this_course.course_type:
-                    course_type = v
+
             dic = dict(
                 course_id=this_course.course_id,
                 course_name=this_course.course_name,
-                course_direction=course_direction,
-                course_type=course_type,
+                course_direction=this_course.course_direction,
+                course_type=this_course.course_type,
                 course_price=this_course.course_price,
                 course_true_price=this_course.course_true_price,
                 ads_picture=str(this_course.ads_picture),
@@ -1378,23 +1357,14 @@ class classDetailsView(View):
 
             '''关联的证书'''
             this_cert = course_cert_obj.cert_id
-            cert_level = ""
-            for k, v in constants.CERTIFICATION_LEVEL:
-                if k == this_cert.cert_level:
-                    cert_level = v
-
-            testing_way = ""
-            for k, v in constants.TESTING_WAYS:
-                if k == this_cert.testing_way:
-                    testing_way = v
 
             cert_dic = dict(
                 cert_id=this_cert.cert_id,
                 cert_name=this_cert.cert_name,
-                cert_level=cert_level,
+                cert_level=this_cert.cert_level,
                 issuing_unit=this_cert.issuing_unit,
                 cert_introduction=this_cert.cert_introduction,
-                testing_way=testing_way,
+                testing_way=this_cert.testing_way,
                 aim_people=this_cert.aim_people,
                 cor_positions=this_cert.cor_positions,
                 expiry_date=this_cert.expiry_date,
@@ -1698,7 +1668,10 @@ class examListSearch(View):
         return JsonResponse(back_dic)
 
 
-class studentDetailsView(View):
+class studentDetailsByIDView(View):
+    """
+    仅限管理员访问，用学员ID查询学员详细信息
+    """
     def get(self, request, *args, **kwargs):
         session_dict = session_exist(request)
         if session_dict["code"] != 1000:
@@ -1713,9 +1686,11 @@ class studentDetailsView(View):
 
         """main content of this method"""
         student_id = self.kwargs["student_id"]
-        if (not user.is_staff) and (user.id != student_id):
+        # 仅限管理员访问
+        manager = AuthorityManager(user_obj=user)
+        if not manager.is_staff():
             back_dic["code"] = 10400
-            back_dic["msg"] = "你无法查看其他学员的信息"
+            back_dic["msg"] = "无权限访问"
             return JsonResponse(back_dic)
 
         try:
@@ -1724,6 +1699,14 @@ class studentDetailsView(View):
             back_dic["code"] = 10200
             back_dic["msg"] = "该学生不存在，请检查url"
             return JsonResponse(back_dic)
+        student_info = dict(
+            student_id=this_student.student_id,
+            name=this_student.student_name,
+            phone_number=this_student.phone_number,
+            wechat=this_student.wechat_openid,
+            id_number=this_student.id_number,
+            sex=this_student.sex
+        )
 
         # 已经完成注册（当然）
         has_signed = True
@@ -1786,12 +1769,20 @@ class studentDetailsView(View):
         data["has_certificated"] = has_certificated
         data["has_joined"] = has_joined
 
+        data["student_info"] = student_info
+
         data["joined_list"] = class_joined_list
 
         back_dic["data"] = data
         return JsonResponse(back_dic)
 
-    def post(self, request, *args, **kwargs):
+
+class studentDetailsBySessionView(View):
+    """
+    仅限学员自己访问，用session信息查询学员详细信息
+    """
+
+    def get(self, request, *args, **kwargs):
         session_dict = session_exist(request)
         if session_dict["code"] != 1000:
             return JsonResponse(session_dict)
@@ -1803,18 +1794,90 @@ class studentDetailsView(View):
         uid = session.get_decoded().get('_auth_user_id')
         user = User.objects.get(pk=uid)
 
-        student_id = self.kwargs["student_id"]
+        """main content of this method"""
+        student_id = user.id
+        # 仅限管理员访问
+        manager = AuthorityManager(user_obj=user)
+
         try:
             this_student = studentInfo.objects.using("db_cert").get(student_id=student_id)
         except:
             back_dic["code"] = 10200
-            back_dic["msg"] = "该学生不存在，请检查url"
+            back_dic["msg"] = "该学生不存在"
             return JsonResponse(back_dic)
+        student_info = dict(
+            student_id=this_student.student_id,
+            name=this_student.student_name,
+            phone_number=this_student.phone_number,
+            wechat=this_student.wechat_openid,
+            id_number=this_student.id_number,
+            sex=this_student.sex
+        )
 
-        para = json.loads(request.body.decode())
-        edit_type = para["type"]
+        # 已经完成注册（当然）
+        has_signed = True
 
-        """main content of this method"""
+        # 已完成小鹅通认证
+        if this_student.is_valid == 1:
+            has_certificated = True
+        else:
+            has_certificated = False
+
+        # 已报名
+        """需要检查class-student表"""
+        joined_list = classStudentCon.objects.using("db_cert").filter(student_id_id=student_id)
+        if joined_list.exists():
+            has_joined = True
+        else:
+            has_joined = False
+
+        # 报名列表
+        class_joined_list = []
+        if has_joined:
+            for each_joined in joined_list:
+                info = dict()
+                info["class_id"] = each_joined.class_id_id
+                class_student_con_id = each_joined.class_student_id
+                class_status = ""
+                for k, v in constants.CLASS_STATUS:
+                    if k == each_joined.class_id.class_status:
+                        class_status = v
+
+                info["class_info"] = dict(
+                    start_date=each_joined.class_id.class_start_date,
+                    end_date=each_joined.class_id.class_end_date,
+                    class_status=class_status,
+                )
+
+                study_progress = ""
+                exam_progress = ""
+                cert_progress = ""
+                practice_progress = ""
+                for k, v in constants.CERT_PROGRESS_OPTIONS:
+                    if each_joined.practice_progress == k:
+                        practice_progress = v
+                    if each_joined.cert_progress == k:
+                        cert_progress = v
+                    if each_joined.exam_progress == k:
+                        exam_progress = v
+                    if each_joined.study_progress == k:
+                        study_progress = v
+
+                info["study_progress"] = study_progress
+                info["practice_progress"] = practice_progress
+                info["exam_progress"] = exam_progress
+                info["cert_progress"] = cert_progress
+                info["class_details_url"] = "cert/" + str(each_joined.class_id_id) + "/class_details/"
+
+                class_joined_list.append(info)
+
+        data["has_signed"] = has_signed
+        data["has_certificated"] = has_certificated
+        data["has_joined"] = has_joined
+
+        data["student_info"] = student_info
+
+        data["joined_list"] = class_joined_list
 
         back_dic["data"] = data
         return JsonResponse(back_dic)
@@ -2367,13 +2430,12 @@ class HomeCourseCertification(View):
 class CertificationDetail(View):
     # 证书详情
     # 不进行用户身份检测,只做登陆检测
-    def get(self, request):
+    def get(self, request, *args, **kwargs):
         session_dict = session_exist(request)
         if session_dict["code"] != 1000:
             return JsonResponse(session_dict)
         back_dic = dict(code=1000, msg="数据查找成功", data=dict())
-        para = json.loads(request.body.decode())
-        cert_id = para["cert_id"]
+        cert_id = self.kwargs["cert_id"]
         certificationinfo = certificationInfo.objects.using('db_cert').filter(cert_id=cert_id).first()
         if certificationinfo:
             back_dic['data']['cert_id'] = certificationinfo.cert_id
@@ -2395,13 +2457,12 @@ class CertificationDetail(View):
 class CourseDetail(View):
     # 课程详情
     # 不进行用户身份检测,只做登陆检测
-    def get(self, request):
+    def get(self, request, *args, **kwargs):
         session_dict = session_exist(request)
         if session_dict["code"] != 1000:
             return JsonResponse(session_dict)
         back_dic = dict(code=1000, msg="数据查找成功", data=dict())
-        para = json.loads(request.body.decode())
-        course_id = para["course_id"]
+        course_id = self.kwargs["course_id"]
         courseinfo = courseInfo.objects.using('db_cert').filter(course_id=course_id).first()
         if courseinfo:
             back_dic['data']['course_id'] = courseinfo.course_id
@@ -2414,6 +2475,37 @@ class CourseDetail(View):
         else:
             back_dic['code'] = 10006
             back_dic['msg'] = '课程信息不存在!'
+        return JsonResponse(back_dic)
+
+
+class TeacherDetail(View):
+    """
+    教师详情：检测登陆，不检测角色
+    """
+    def get(self, request, *args, **kwargs):
+        session_dict = session_exist(request)
+        if session_dict["code"] != 1000:
+            return JsonResponse(session_dict)
+        back_dic = dict(code=1000, msg="数据查找成功", data=dict())
+        teacher_id = self.kwargs["teacher_id"]
+        try:
+            this_teacher = teacherInfo.objects.using("db_cert").get(teacher_id=teacher_id)
+        except:
+            back_dic["code"] = 10200
+            back_dic["msg"] = "教师不存在"
+            return JsonResponse(back_dic)
+        data = dict(
+            teacher_id=this_teacher.teacher_id,
+            name=this_teacher.teacher_name,
+            phone=this_teacher.phone_number,
+            wechat=this_teacher.wechat_openid,
+            photo=str(this_teacher.photo),
+            introduction=this_teacher.self_introduction,
+            level=this_teacher.level,
+            teaching_field=this_teacher.teaching_field
+        )
+
+        back_dic["data"] = data
         return JsonResponse(back_dic)
 
 
