@@ -1328,33 +1328,19 @@ class classDetailsView(View):
         data["is_staff"] = user.is_staff or user.is_superuser
 
         this_class = this_class.first()
-        class_type = ""
-        for k, v in constants.CLASS_TYPE:
-            if this_class.class_type == k:
-                class_type = v
-
-        class_period = ""
-        for k, v in constants.CLASS_PERIOD:
-            if this_class.class_period == k:
-                class_period = v
-
-        class_status = ""
-        for k, v in constants.CLASS_STATUS:
-            if this_class.class_status == k:
-                class_status = v
 
         # 班级的基本信息
         class_info = dict(
             class_name=this_class.class_name,
-            class_type=class_type,
-            class_period=class_period,
+            class_type=this_class.class_type,
+            class_period=this_class.class_period,
             start_date=str(this_class.class_start_date),
             end_date=str(this_class.class_end_date),
             has_exam=this_class.is_exam_exist,
             has_practice=this_class.is_practice_exist,
             has_cert=this_class.is_cert_exist,
             has_online_study=this_class.is_online_study_exist,
-            class_status=class_status
+            class_status=this_class.class_status
         )
         data["class_info"] = class_info
 
@@ -1380,19 +1366,12 @@ class classDetailsView(View):
             course_cert_obj = course_cert_set.first()
             '''关联的课程'''
             this_course = course_cert_obj.course_id
-            course_direction = ""
-            for k, v in constants.COURSE_DIRECTION:
-                if k == this_course.course_direction:
-                    course_direction = v
-            course_type = ""
-            for k, v in constants.COURSE_TYPE:
-                if k == this_course.course_type:
-                    course_type = v
+
             dic = dict(
                 course_id=this_course.course_id,
                 course_name=this_course.course_name,
-                course_direction=course_direction,
-                course_type=course_type,
+                course_direction=this_course.course_direction,
+                course_type=this_course.course_type,
                 course_price=this_course.course_price,
                 course_true_price=this_course.course_true_price,
                 ads_picture=str(this_course.ads_picture),
@@ -1401,23 +1380,14 @@ class classDetailsView(View):
 
             '''关联的证书'''
             this_cert = course_cert_obj.cert_id
-            cert_level = ""
-            for k, v in constants.CERTIFICATION_LEVEL:
-                if k == this_cert.cert_level:
-                    cert_level = v
-
-            testing_way = ""
-            for k, v in constants.TESTING_WAYS:
-                if k == this_cert.testing_way:
-                    testing_way = v
 
             cert_dic = dict(
                 cert_id=this_cert.cert_id,
                 cert_name=this_cert.cert_name,
-                cert_level=cert_level,
+                cert_level=this_cert.cert_level,
                 issuing_unit=this_cert.issuing_unit,
                 cert_introduction=this_cert.cert_introduction,
-                testing_way=testing_way,
+                testing_way=this_cert.testing_way,
                 aim_people=this_cert.aim_people,
                 cor_positions=this_cert.cor_positions,
                 expiry_date=this_cert.expiry_date,
@@ -2483,14 +2453,13 @@ class HomeCourseCertification(View):
 class CertificationDetail(View):
     # 证书详情
     # 不进行用户身份检测,只做登陆检测
-    def get(self, request):
+    def get(self, request, *args, **kwargs):
         session_dict = session_exist(request)
         if session_dict["code"] != 1000:
             return JsonResponse(session_dict)
         back_dic = dict(code=1000, msg="数据查找成功", data=dict())
-        para = json.loads(request.body.decode())
-        cert_id = para["cert_id"]
-        certificationinfo  = certificationInfo.objects.using('db_cert').filter(cert_id=cert_id).first()
+        cert_id = self.kwargs["cert_id"]
+        certificationinfo = certificationInfo.objects.using('db_cert').filter(cert_id=cert_id).first()
         if certificationinfo:
             back_dic['data']['cert_id'] = certificationinfo.cert_id
             back_dic['data']['cert_name'] = str(certificationinfo.cert_name)
@@ -2511,13 +2480,12 @@ class CertificationDetail(View):
 class CourseDetail(View):
     # 课程详情
     # 不进行用户身份检测,只做登陆检测
-    def get(self, request):
+    def get(self, request, *args, **kwargs):
         session_dict = session_exist(request)
         if session_dict["code"] != 1000:
             return JsonResponse(session_dict)
         back_dic = dict(code=1000, msg="数据查找成功", data=dict())
-        para = json.loads(request.body.decode())
-        course_id = para["course_id"]
+        course_id = self.kwargs["course_id"]
         courseinfo = courseInfo.objects.using('db_cert').filter(course_id=course_id).first()
         if courseinfo:
             back_dic['data']['course_id'] = courseinfo.course_id
@@ -2530,6 +2498,37 @@ class CourseDetail(View):
         else:
             back_dic['code'] = 10006
             back_dic['msg'] = '课程信息不存在!'
+        return JsonResponse(back_dic)
+
+
+class TeacherDetail(View):
+    """
+    教师详情：检测登陆，不检测角色
+    """
+    def get(self, request, *args, **kwargs):
+        session_dict = session_exist(request)
+        if session_dict["code"] != 1000:
+            return JsonResponse(session_dict)
+        back_dic = dict(code=1000, msg="数据查找成功", data=dict())
+        teacher_id = self.kwargs["teacher_id"]
+        try:
+            this_teacher = teacherInfo.objects.using("db_cert").get(teacher_id=teacher_id)
+        except:
+            back_dic["code"] = 10200
+            back_dic["msg"] = "教师不存在"
+            return JsonResponse(back_dic)
+        data = dict(
+            teacher_id=this_teacher.teacher_id,
+            name=this_teacher.teacher_name,
+            phone=this_teacher.phone_number,
+            wechat=this_teacher.wechat_openid,
+            photo=str(this_teacher.photo),
+            introduction=this_teacher.self_introduction,
+            level=this_teacher.level,
+            teaching_field=this_teacher.teaching_field
+        )
+
+        back_dic["data"] = data
         return JsonResponse(back_dic)
 
 

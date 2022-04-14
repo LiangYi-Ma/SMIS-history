@@ -24,6 +24,7 @@ urlpatterns = [
     path('<int:class_id>/check_issuing_qualification/', views.checkIssuingQualificationByClassID.as_view()),
     # 教师视图
     path('teacher_editing/', views.teacherEditionView.as_view()),
+    path('<int:teacher_id>/teacher_details/', views.TeacherDetail.as_view()),
     # 教师照片上传
     path('<int:teacher_id>/teacher_photo_uploading/', views.editTeacherPhoto),
     # 课程视图
@@ -54,7 +55,7 @@ urlpatterns = [
     # 主页GET
     path('index_frontend/', views.HomeCourseCertification.as_view()),
     # 证书详情
-    path('certification_detail/', views.CertificationDetail.as_view()),
+    path('<int:cert_id>/certification_detail/', views.CertificationDetail.as_view()),
     # 课程详情
-    path('course_detail/', views.CourseDetail.as_view()),
+    path('<int:course_id>/course_detail/', views.CourseDetail.as_view()),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
