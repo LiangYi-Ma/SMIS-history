@@ -1,15 +1,47 @@
 import datetime
 import re
 from id_validator import validator
+from django.contrib.sessions.models import Session
 from SMIS.constants import EDUCATION_LEVELS, JOB_NATURE_CHOICES, NATURE_CHOICES, FINANCING_STATUS_CHOICES, \
     PROVINCES_CHOICES, TIME_UNIT_CHOICES, YEAR_CHOICES, PROGRESS_CHOICES, SEX_CHOICE, NATIONS, MARTIAL_CHOICES, \
     SKILL_CHOICES
 from enterprise.models import Field
+
 """
 {'type': '101', 'id': '37', 
 'start': '2020-12-30', 'end': '2021-01-05', 
 'enterprise': 'f', 'location': 's', 'position': 'sa', 'content': 'sa'}
 """
+
+
+# 判断session 是否过期
+def session_exist(request):
+    # session_key = request.session.session_key
+    session_key = request.META.get("HTTP_AUTHORIZATION")
+    print("*****", request.META.get("HTTP_AUTHORIZATION"))
+    for k, v in request.META.items():
+        print("> ", k, ":", v)
+    back_dir = dict(code=1000, msg="", data=dict())
+    try:
+        is_existed = Session.objects.get(session_key__exact=session_key)
+        # if is_existed and is_existed.expire_date <= datetime.datetime.now():
+        #     back_dir["code"] = 0
+        #     back_dir["msg"] = "session[" + is_existed.session_key + "]已失效"
+        #     request.session.flush()
+    except:
+        if session_key:
+            back_dir["code"] = 0
+            back_dir["msg"] = "session[" + session_key + "]未被检测到"
+        else:
+            back_dir["code"] = 0
+            back_dir["msg"] = "接收到的session_key为空"
+
+    # 判断 session_key是否存在
+    # if not is_existed:
+    #     back_dir["code"] = 0
+    #     back_dir["msg"] = "未检测到session或session已失效"
+    #     request.session.flush()
+    return back_dir
 
 
 def is_number(num):
@@ -30,6 +62,8 @@ def is_number(num):
 
 def is_null(value):
     return value in ["", None, "null", "undefined"]
+
+
 # global is_null
 
 
@@ -183,9 +217,13 @@ def tra_is_valid(dict):
         pass
     return back_dic
 
+
 from cv.models import Industry
+
 # INDUSTRY_LIST = ['矿业', '能源', '电讯', '服装', '航空航天', '化学', '建筑业', '金属冶炼', '造纸', '机械制造', '其他', '']
 SKILL_LIST = ['一般', '了解', '中等', '熟悉', '精通', '-']
+
+
 # INDUSTRY_LIST = Field.objects.filter(is_root=False).all()
 
 def cv_is_valid(dict):
@@ -227,6 +265,7 @@ def cv_is_valid(dict):
         back_dic['msg'] = '请将你的特长/爱好限制在8字以内'
 
     return back_dic
+
 
 def enterprise_info_is_valid(para):
     from enterprise.models import SettingChineseTag, TaggedWhatever
@@ -386,6 +425,7 @@ def position_info_is_valid(dict):
 
     return back_dic
 
+
 def student_info_is_valid(dict):
     back_dic = {
         'code': 1000,
@@ -415,3 +455,26 @@ def student_info_is_valid(dict):
         back_dic["msg"] = "身份证号校验未通过，请检查并重新输入"
 
     return back_dic
+
+
+def split_q(q):
+    length = len(list(q))
+    splited_list = []
+    for i in range(length):
+        splited_list.append(q[0: i + 1])
+        if q[i + 1:] != '':
+            splited_list.append(q[i + 1:])
+    return splited_list
+
+
+def calculate_age(date):
+    today_d = datetime.datetime.now().date()
+    try:
+        birth_t = date.replace(year=today_d.year)
+        if today_d > birth_t:
+            age = today_d.year - date.year
+        else:
+            age = today_d.year - date.year - 1
+        return age
+    except:
+        return None
