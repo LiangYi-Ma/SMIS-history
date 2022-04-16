@@ -117,10 +117,12 @@ class classInfo(models.Model):
     def update_class_status(self):
         now = datetime.datetime.now().date()
         # DateField中存储的是字符串（？）
-        # start = datetime.datetime.strptime(self.class_start_date, '%Y-%m-%d')
-        # end = datetime.datetime.strptime(self.class_end_date, '%Y-%m-%d')
-        start = datetime.datetime(self.class_start_date.year, self.class_start_date.month, self.class_start_date.day).date()
-        end = datetime.datetime(self.class_end_date.year, self.class_end_date.month, self.class_end_date.day).date()
+        try:
+            start = datetime.datetime(self.class_start_date.year, self.class_start_date.month, self.class_start_date.day).date()
+            end = datetime.datetime(self.class_end_date.year, self.class_end_date.month, self.class_end_date.day).date()
+        except:
+            start = datetime.datetime.strptime(self.class_start_date, '%Y-%m-%d').date()
+            end = datetime.datetime.strptime(self.class_end_date, '%Y-%m-%d').date()
         if start > now:
             self.class_status = 0
         elif end < now:

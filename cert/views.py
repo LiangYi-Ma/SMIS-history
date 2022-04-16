@@ -24,7 +24,6 @@ from enterprise.models import SettingChineseTag, TaggedWhatever
 
 import datetime
 import json
-from SMIS.validation import calculate_age
 import re
 import random as rd
 import numpy as np
@@ -1059,34 +1058,19 @@ class classEditionView(View):
         class_not_closed = classInfo.objects.using("db_cert").filter(~Q(class_status=3))
         class_not_closed_list = []
         for each_class in class_not_closed:
-            class_type = ""
-            for k, v in constants.CLASS_TYPE:
-                if each_class.class_type == k:
-                    class_type = v
-
-            class_period = ""
-            for k, v in constants.CLASS_PERIOD:
-                if each_class.class_period == k:
-                    class_period = v
-
-            class_status = ""
-            for k, v in constants.CLASS_STATUS:
-                if each_class.class_status == k:
-                    class_status = v
-
             # 班级的基本信息
             class_info = dict(
                 class_id=each_class.class_id,
                 class_name=each_class.class_name,
-                class_type=class_type,
-                class_period=class_period,
+                class_type=each_class.class_type,
+                class_period=each_class.class_period,
                 start_date=str(each_class.class_start_date),
                 end_date=str(each_class.class_end_date),
                 has_exam=each_class.is_exam_exist,
                 has_practice=each_class.is_practice_exist,
                 has_cert=each_class.is_cert_exist,
                 has_online_study=each_class.is_online_study_exist,
-                class_status=class_status
+                class_status=each_class.class_status
             )
             class_not_closed_list.append(class_info)
         data["class_not_closed"] = class_not_closed_list
@@ -1095,34 +1079,19 @@ class classEditionView(View):
         class_closed = classInfo.objects.using("db_cert").filter(class_status=3)
         class_closed_list = []
         for each_class in class_closed:
-            class_type = ""
-            for k, v in constants.CLASS_TYPE:
-                if each_class.class_type == k:
-                    class_type = v
-
-            class_period = ""
-            for k, v in constants.CLASS_PERIOD:
-                if each_class.class_period == k:
-                    class_period = v
-
-            class_status = ""
-            for k, v in constants.CLASS_STATUS:
-                if each_class.class_status == k:
-                    class_status = v
-
             # 班级的基本信息
             class_info = dict(
                 class_id=each_class.class_id,
                 class_name=each_class.class_name,
-                class_type=class_type,
-                class_period=class_period,
+                class_type=each_class.class_type,
+                class_period=each_class.class_period,
                 start_date=str(each_class.class_start_date),
                 end_date=str(each_class.class_end_date),
                 has_exam=each_class.is_exam_exist,
                 has_practice=each_class.is_practice_exist,
                 has_cert=each_class.is_cert_exist,
                 has_online_study=each_class.is_online_study_exist,
-                class_status=class_status
+                class_status=each_class.class_status
             )
             class_closed_list.append(class_info)
         data["class_closed"] = class_closed_list
@@ -1672,6 +1641,7 @@ class studentDetailsByIDView(View):
     """
     仅限管理员访问，用学员ID查询学员详细信息
     """
+
     def get(self, request, *args, **kwargs):
         session_dict = session_exist(request)
         if session_dict["code"] != 1000:
@@ -1970,7 +1940,8 @@ class classStudentsManagementView(View):
 
         '''更新失败时间'''
         failed_dates = []
-        failed_update_date_queryset = failedUpdateRecords.objects.using("db_cert").filter(class_id_id=class_id, is_updated=False)
+        failed_update_date_queryset = failedUpdateRecords.objects.using("db_cert").filter(class_id_id=class_id,
+                                                                                          is_updated=False)
         for failed_record in failed_update_date_queryset:
             failed_dates.append(failed_record.failed_date)
         data["failed_dates"] = failed_dates
@@ -2370,12 +2341,39 @@ class HomeCourseCertification(View):
             manager = AuthorityManager(user)
             back_dic["data"]["is_staff"] = manager.is_staff()
 
+        # 轮播图
+        crs_list = [
+            {
+                "pic_path": "https://znzz.tech/static/img/sys-img/crs-cert/crs-cert-01.jpg",
+                "url": "https://apphtpxagtp7928.h5.xiaoeknow.com/p/decorate/homepage?"
+            }, {
+                "pic_path": "https://znzz.tech/static/img/sys-img/crs-cert/crs-cert-02.jpg",
+                "url": "https://apphtpxagtp7928.pc.xiaoe-tech.com"
+            }, {
+                "pic_path": "https://znzz.tech/static/img/sys-img/crs-cert/crs-cert-03.jpg",
+                "url": "https://wxaurl.cn/Il7kWsH4bzv"
+            }, {
+                "pic_path": "https://znzz.tech/static/img/sys-img/crs-cert/crs-cert-04.jpg",
+                "url": "https://mp.weixin.qq.com/mp/appmsgalbum?action=getalbum&__biz=Mzg3NjY2NDAxMA==&scene=1&album_id=2319237584956440577&count=3#wechat_redirect"
+            }, {
+                "pic_path": "https://znzz.tech/static/img/sys-img/crs-cert/crs-cert-05.jpg",
+                "url": "https://mp.weixin.qq.com/s/67pDb8_hy9dJMG4GSatU2Q"
+            }, {
+                "pic_path": "https://znzz.tech/static/img/sys-img/crs-cert/crs-cert-06.jpg",
+                "url": "https://mp.weixin.qq.com/s/67pDb8_hy9dJMG4GSatU2Q"
+            }, {
+                "pic_path": "https://znzz.tech/static/img/sys-img/crs-cert/crs-cert-07.jpg",
+                "url": "https://www.douyin.com/user/MS4wLjABAAAAXVWuIIqRFuVycS47qIyjTD1_39Hmf2fLy9X9gR3nRlo"
+            }
+        ]
+        back_dic["data"]["crs_list"] = crs_list
+
         # 查找证书列表
         certification_query = certificationInfo.objects.using("db_cert").order_by('cert_name', 'cert_level').all()[:8]
         if certification_query:
             result = []
             for i in range(len(certification_query)):
-                ls = {}
+                ls = dict()
                 ls['cert_id'] = certification_query[i].cert_id
                 ls['cert_name'] = str(certification_query[i].cert_name)
                 ls['cert_sample'] = str(certification_query[i].cert_sample)
@@ -2482,6 +2480,7 @@ class TeacherDetail(View):
     """
     教师详情：检测登陆，不检测角色
     """
+
     def get(self, request, *args, **kwargs):
         session_dict = session_exist(request)
         if session_dict["code"] != 1000:

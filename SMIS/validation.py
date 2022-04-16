@@ -2,10 +2,6 @@ import datetime
 import re
 from id_validator import validator
 from django.contrib.sessions.models import Session
-from SMIS.constants import EDUCATION_LEVELS, JOB_NATURE_CHOICES, NATURE_CHOICES, FINANCING_STATUS_CHOICES, \
-    PROVINCES_CHOICES, TIME_UNIT_CHOICES, YEAR_CHOICES, PROGRESS_CHOICES, SEX_CHOICE, NATIONS, MARTIAL_CHOICES, \
-    SKILL_CHOICES
-from enterprise.models import Field
 
 """
 {'type': '101', 'id': '37', 
