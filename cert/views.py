@@ -1772,9 +1772,14 @@ class studentDetailsBySessionView(View):
         try:
             this_student = studentInfo.objects.using("db_cert").get(student_id=student_id)
         except:
-            back_dic["code"] = 10200
-            back_dic["msg"] = "该学生不存在"
+            has_signed = False
+            has_joined = False
+            has_certificated = False
+            data["has_signed"] = has_signed
+            data["has_certificated"] = has_certificated
+            data["has_joined"] = has_joined
             return JsonResponse(back_dic)
+
         student_info = dict(
             student_id=this_student.student_id,
             name=this_student.student_name,
