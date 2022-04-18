@@ -4,6 +4,7 @@ from . import views
 from django.conf import settings
 from django.conf.urls.static import static
 from . import api_practice as practice_views
+from . import api_test_data_create as test_views
 
 
 urlpatterns = [
@@ -58,4 +59,6 @@ urlpatterns = [
     path('<int:cert_id>/certification_detail/', views.CertificationDetail.as_view()),
     # 课程详情
     path('<int:course_id>/course_detail/', views.CourseDetail.as_view()),
+
+    path('create_teat_data/', test_views.CreateTestData.as_view()),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -1286,7 +1286,9 @@ class classDetailsView(View):
             has_practice=this_class.is_practice_exist,
             has_cert=this_class.is_cert_exist,
             has_online_study=this_class.is_online_study_exist,
-            class_status=this_class.class_status
+            class_status=this_class.class_status,
+            min_study_time=this_class.min_study_time,
+            min_practice_score=this_class.min_practice_score
         )
         data["class_info"] = class_info
 
@@ -1312,34 +1314,38 @@ class classDetailsView(View):
             course_cert_obj = course_cert_set.first()
             '''关联的课程'''
             this_course = course_cert_obj.course_id
-
-            dic = dict(
-                course_id=this_course.course_id,
-                course_name=this_course.course_name,
-                course_direction=this_course.course_direction,
-                course_type=this_course.course_type,
-                course_price=this_course.course_price,
-                course_true_price=this_course.course_true_price,
-                ads_picture=str(this_course.ads_picture),
-            )
-            data["related_course"] = dic
+            if not this_course:
+                data["related_course"] = dict()
+            else:
+                dic = dict(
+                    course_id=this_course.course_id,
+                    course_name=this_course.course_name,
+                    course_direction=this_course.course_direction,
+                    course_type=this_course.course_type,
+                    course_price=this_course.course_price,
+                    course_true_price=this_course.course_true_price,
+                    ads_picture=str(this_course.ads_picture),
+                )
+                data["related_course"] = dic
 
             '''关联的证书'''
             this_cert = course_cert_obj.cert_id
-
-            cert_dic = dict(
-                cert_id=this_cert.cert_id,
-                cert_name=this_cert.cert_name,
-                cert_level=this_cert.cert_level,
-                issuing_unit=this_cert.issuing_unit,
-                cert_introduction=this_cert.cert_introduction,
-                testing_way=this_cert.testing_way,
-                aim_people=this_cert.aim_people,
-                cor_positions=this_cert.cor_positions,
-                expiry_date=this_cert.expiry_date,
-                cert_sample=str(this_cert.cert_sample)
-            )
-            data["related_cert"] = cert_dic
+            if not this_cert:
+                data["related_cert"] = dict()
+            else:
+                cert_dic = dict(
+                    cert_id=this_cert.cert_id,
+                    cert_name=this_cert.cert_name,
+                    cert_level=this_cert.cert_level,
+                    issuing_unit=this_cert.issuing_unit,
+                    cert_introduction=this_cert.cert_introduction,
+                    testing_way=this_cert.testing_way,
+                    aim_people=this_cert.aim_people,
+                    cor_positions=this_cert.cor_positions,
+                    expiry_date=this_cert.expiry_date,
+                    cert_sample=str(this_cert.cert_sample)
+                )
+                data["related_cert"] = cert_dic
 
         """与该班级关联的考试"""
         has_related_exam = classExamCon.objects.using("db_cert").filter(class_id_id=class_id)
@@ -1348,6 +1354,7 @@ class classDetailsView(View):
             '''未做考试信息展示'''
             related_exam = has_related_exam.first()
             exam_id = related_exam.exam_id
+            data["class_info"]["min_exam_score"] = related_exam.min_score
             #     在小鹅通接口拿考试详细信息，封装给data中返回前端
             api_url = 'https://api.xiaoe-tech.com/xe.examination.detail.get/1.0.0'
             client = XiaoeClient()
@@ -1364,6 +1371,7 @@ class classDetailsView(View):
                 for key in exam_infos.keys():
                     if key in result:
                         exam_list[key] = exam_infos[key]
+                exam_list["exam_id"] = exam_id
                 data['exam_info'] = exam_list
         else:
             data["has_exam_related"] = False
@@ -1571,7 +1579,7 @@ class classDetailsView(View):
 
 
 class examListSearch(View):
-    def get(self, request, *args, **kwargs):
+    def post(self, request, *args, **kwargs):
         session_dict = session_exist(request)
         if session_dict["code"] != 1000:
             return JsonResponse(session_dict)
@@ -1778,6 +1786,7 @@ class studentDetailsBySessionView(View):
             data["has_signed"] = has_signed
             data["has_certificated"] = has_certificated
             data["has_joined"] = has_joined
+            back_dic["data"] = data
             return JsonResponse(back_dic)
 
         student_info = dict(
