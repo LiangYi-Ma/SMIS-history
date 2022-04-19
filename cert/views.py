@@ -257,6 +257,7 @@ class bindingXetUser(View):
         if res["code"] == 0:
             '''查询到用户'''
             this_student.xet_id = res["data"]["user_id"]
+            this_student.is_valid = 1
             this_student.save()
             back_dic["code"] = 1000
             back_dic["msg"] = "绑定小鹅通账号成功"
@@ -2124,7 +2125,7 @@ class updateOnlineStudyRecordsByHand(View):
 
         res = update_online_study_progress_by_hand(class_id, failed_date)
         back_dic = res
-
+        print(res)
         return JsonResponse(back_dic)
 
 

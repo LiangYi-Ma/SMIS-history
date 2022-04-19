@@ -99,7 +99,7 @@ def student_info_is_valid(para):
     elif len(para["name"]) > 16:
         back_dic["code"] = 1002
         back_dic["msg"] = "姓名过长"
-    elif (not is_number(para["phone"])) or len(para["phone"]) != 11:
+    elif (not is_number(para["phone"])) or len(str(para["phone"])) != 11:
         back_dic["code"] = 1003
         back_dic["msg"] = "请输入正确格式的手机号"
     elif is_null(para["wechat"]):

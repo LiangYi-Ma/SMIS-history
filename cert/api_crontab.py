@@ -8,6 +8,7 @@ from cert.models import failedUpdateRecords, updateDateRecords, onlineStudyRecor
     classStudentCon
 import datetime
 from cert.api_xet_client import XiaoeClient
+from numpy import array
 
 
 def get_study_info_by_list(user_list, date):
@@ -17,14 +18,18 @@ def get_study_info_by_list(user_list, date):
     :param user_list: list
     :return: 请求结果，列表数据
     """
+    user_list = list(filter(None, user_list))
+    print(">>>>user list:", user_list)
     api_url = "https://api.xiaoe-tech.com/xe.learning_records.daily.get/1.0.0"
     params = {
         "date": date,
         "page": 1,
-        "page_size": len(user_list)
+        "page_size": len(user_list),
+        "user_id_list": array(user_list).tolist()
     }
     client = XiaoeClient()
     res = client.request("post", api_url, params)
+    print(res)
     if res["code"] == 0:
         '''请求成功'''
         return True, res["data"]["list"]
@@ -98,8 +103,10 @@ def update_online_study_progress():
 
 def update_online_study_progress_by_hand(class_id, date):
     xet_student_dic = get_xet_list_by_class_id(class_id)
-    xet_list = xet_student_dic.keys()
+    print(xet_student_dic)
+    xet_list = list(xet_student_dic.keys())
     res, res_list = get_study_info_by_list(xet_list, date)
+    print(res, res_list)
     if res:
         '''请求成功'''
         for record in res_list:
@@ -118,7 +125,7 @@ def update_online_study_progress_by_hand(class_id, date):
                         failed_record.save()
                     except:
                         pass
-                    return dict(code=1000, msg="补更新成功")
+        return dict(code=1000, msg="补更新成功")
     else:
         '''请求失败'''
         return dict(code=10001, msg="补更新失败，请重试")

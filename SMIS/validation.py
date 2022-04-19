@@ -15,8 +15,8 @@ def session_exist(request):
     # session_key = request.session.session_key
     session_key = request.META.get("HTTP_AUTHORIZATION")
     print("*****", request.META.get("HTTP_AUTHORIZATION"))
-    for k, v in request.META.items():
-        print("> ", k, ":", v)
+    # for k, v in request.META.items():
+    #     print("> ", k, ":", v)
     back_dir = dict(code=1000, msg="", data=dict())
     try:
         is_existed = Session.objects.get(session_key__exact=session_key)
