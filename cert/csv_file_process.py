@@ -1,11 +1,6 @@
 import codecs
 import csv
-
-MOBILE_FIRST_LINE = '最近采集手机号'
-MOBILE_SECOND_LINE = '账户绑定手机号'
-USER_ID_LINE = '用户ID'
-STU_ID_LINE = '学员id'
-GRADE_LINE = '得分'
+from SMIS.data_utils import Utils
 
 
 def find_mobile_within_str(s):
@@ -29,13 +24,13 @@ def process_student_file(f):
     print(header)
 
     '''文件格式不合法时的方法出口'''
-    if not ((MOBILE_FIRST_LINE in header) and (MOBILE_SECOND_LINE in header)):
+    if not ((Utils.MOBILE_FIRST_LINE in header) and (Utils.MOBILE_SECOND_LINE in header)):
         return -1
 
     # 设定第一优先级，第二优先级
-    first_line = header.index(MOBILE_FIRST_LINE)
-    second_line = header.index(MOBILE_SECOND_LINE)
-    u_id_line = header.index(USER_ID_LINE)
+    first_line = header.index(Utils.MOBILE_FIRST_LINE)
+    second_line = header.index(Utils.MOBILE_SECOND_LINE)
+    u_id_line = header.index(Utils.USER_ID_LINE)
     # print(first_line, second_line)
     # print(header)
     valid_mobiles = dict()
@@ -62,14 +57,14 @@ def process_exam_file(f):
     print(header)
 
     '''文件格式不合法时的方法出口'''
-    if GRADE_LINE not in header:
+    if Utils.GRADE_LINE not in header:
         return -1
 
-    u_id = header.index(STU_ID_LINE)
-    grade_line = header.index(GRADE_LINE)
+    u_id = header.index(Utils.STU_ID_LINE)
+    Utils.GRADE_LINE = header.index(Utils.GRADE_LINE)
     grade_dic = dict()
     for row in reader:
-        grade = float(row[grade_line])
+        grade = float(row[Utils.GRADE_LINE])
         student_id = row[u_id]
         grade_dic[student_id] = grade
 

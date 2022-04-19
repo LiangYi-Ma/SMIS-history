@@ -9,15 +9,17 @@ import requests
 import json
 import os.path
 from datetime import datetime, timedelta
+from SMIS.data_utils import Utils
 
-BASE_URL = 'https://api.xiaoe-tech.com'
-TOKEN_PATH = '/token'
-
-TOKEN_CACHE_PATH = 'access_token.json'
+BASE_URL = Utils.BASE_URL
+TOKEN_PATH = Utils.TOKEN_PATH
+TOKEN_CACHE_PATH = Utils.TOKEN_CACHE_PATH
+Content_Type = Utils.CONTENT_TYPE
 
 
 class TokenManager:
     """TokenManager类维护token功能"""
+
     def __init__(self, app_id, client_id, secret_key, grant_type):
         self.app_id = app_id
         self.client_id = client_id
@@ -46,7 +48,7 @@ class TokenManager:
             "grant_type": self.grant_type,
         })
         headers = {
-            'Content-Type': 'application/json'
+            'Content-Type': Content_Type
         }
         response = requests.get(BASE_URL + TOKEN_PATH,
                                 headers=headers, data=payload)
@@ -79,4 +81,3 @@ class TokenManager:
                 "access_token": self.access_token,
                 "token_expire_at": datetime.timestamp(self.token_expire_at),
             }, f)
-

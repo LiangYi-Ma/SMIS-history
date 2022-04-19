@@ -44,6 +44,7 @@ from cert.api_xet_client import XiaoeClient
 from SMIS.api_authority_manager import AuthorityManager
 from cert.api_crontab import update_online_study_progress_by_hand
 from SMIS.validation import session_exist
+from SMIS.data_utils import Utils
 
 
 # Create your views here.
@@ -2134,9 +2135,9 @@ class CustomerServiceConsultation(View):
         message = f'联系电话：{number}\n' \
                   f'咨询内容：{text}'
         # 邮箱账号
-        username = 'service@shiyenet.com.cn'
+        username = Utils.Customer_Service_User_name
         # 邮箱授权码
-        authorization_code = 'Hrjd332211'
+        authorization_code = Utils.Authorization_Code
         # 构建一个邮箱服务对象
         uuid = uuid4()
         server = zmail.server(username, authorization_code)
@@ -2146,7 +2147,7 @@ class CustomerServiceConsultation(View):
             'content_text': message,  # 纯文本或者HTML内容
         }
         # 收件人
-        mail_to = 'talent@shiyenet.com.cn'
+        mail_to = Utils.Customer_Service_Mail_To
         try:
             # 发送邮件
             server.send_mail(mail_to, mail_body)

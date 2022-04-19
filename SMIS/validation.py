@@ -2,6 +2,7 @@ import datetime
 import re
 from id_validator import validator
 from django.contrib.sessions.models import Session
+from SMIS.data_utils import Utils
 
 """
 {'type': '101', 'id': '37', 
@@ -139,8 +140,8 @@ def job_is_valid(dict):
 'school': 'xc', 'department': 'xc', 'major': 'xc', 'degree': '硕士', 'edu': '硕士研究生'}
 """
 
-EDU_LIST = ['小学', '初中', '高中', '中专', '职校', '中技', '专科', '本科', '硕士研究生', '博士研究生', '-', '']
-DEGREE_LIST = ['学士', '硕士', '博士', '-', '']
+EDU_LIST = Utils.EDU_LIST
+DEGREE_LIST = Utils.DEGREE_LIST
 
 
 def edu_is_valid(dict):
@@ -216,8 +217,8 @@ def tra_is_valid(dict):
 
 from cv.models import Industry
 
-# INDUSTRY_LIST = ['矿业', '能源', '电讯', '服装', '航空航天', '化学', '建筑业', '金属冶炼', '造纸', '机械制造', '其他', '']
-SKILL_LIST = ['一般', '了解', '中等', '熟悉', '精通', '-']
+# INDUSTRY_LIST = Utils.INDUSTRY_LIST
+SKILL_LIST = Utils.SKILL_LIST
 
 
 # INDUSTRY_LIST = Field.objects.filter(is_root=False).all()

@@ -15,6 +15,7 @@ import random as rd
 import requests
 import urllib
 import datetime
+from SMIS.data_utils import Utils
 
 
 class LoginByMsgView(View):
@@ -25,12 +26,12 @@ class LoginByMsgView(View):
         """1:发送验证码；2:检查验证码"""
         if data["type"] == "1":
             mobile = data["mobile"]
-            port_head = "https://inolink.com/ws/BatchSend2.aspx?"
-            username = "tclkj03236"
-            password = "123456@"
-            msg_head = "您的验证码为"
+            port_head = Utils.LoginByMsgView_PORT_HEAD
+            username = Utils.LoginByMsgView_USERNAME
+            password = Utils.LoginByMsgView_PASSWORD
+            msg_head = Utils.LoginByMsgView_MSG_HEAD
             code = rd.randint(1000, 9999)
-            sign = "，该验证码有效期为10分钟。【智能智造科技】"
+            sign = Utils.LoginByMsgView_SIGN
             message = msg_head + str(code) + sign
             message_gb = urllib.parse.quote(message.encode("gb2312"))
 
@@ -145,4 +146,3 @@ class LoginView(View):
             back_dic['code'] = 2000
             back_dic['msg'] = '用户名或密码错误'
         return JsonResponse(back_dic)
-
