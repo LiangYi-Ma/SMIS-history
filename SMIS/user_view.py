@@ -60,7 +60,7 @@ def index(request):
         print("当前登陆用户：", user.username)
         is_log_in = True
     except:
-        return JsonResponse(dict(code=10, msg="匿名用户"))
+        is_log_in = False
 
     pst_all = []
     for pst in all_pst_classes:

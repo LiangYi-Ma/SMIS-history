@@ -95,8 +95,11 @@ def update_online_study_progress():
 
 def update_online_study_progress_by_hand(class_id, date):
     xet_student_dic = get_xet_list_by_class_id(class_id)
+    print("》》》》》student + xetid:", xet_student_dic)
     xet_list = xet_student_dic.keys()
     res, res_list = get_study_info_by_list(xet_list, date)
+    print(date, xet_list)
+    print(res, res_list)
     if res:
         '''请求成功'''
         for record in res_list:

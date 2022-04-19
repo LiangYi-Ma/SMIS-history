@@ -29,7 +29,7 @@ class XiaoeClient:
         access_token = MANAGER.token()
         user_params["access_token"] = access_token
         payload = json.dumps(user_params)
-        # print(payload)
+        print(payload)
         headers = {
             'Content-Type': 'application/json'
         }
