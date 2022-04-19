@@ -18,6 +18,7 @@ from PIL import Image
 from SMIS.constants import JOB_NATURE_CHOICES, YEAR_CHOICES
 from SMIS.mapper import PositionClassMapper, UserMapper
 from SMIS.validation import is_null
+from SMIS.data_utils import Utils
 
 
 def open_and_compress(img_path):
@@ -128,12 +129,12 @@ class ContactUsView(View):
     def get(self, request, *args, **kwargs):
         back_dic = dict(code=1000, msg='')
         data = dict()
-        data["beijing"] = dict(location="北京",
-                               phone="18610218901",
-                               address="北京市海淀区东升科技园B2-103",
+        data["beijing"] = dict(location=Utils.CONTACT_US_BJ_LOCATION,
+                               phone=Utils.CONTACT_US_BJ_PHONE,
+                               address=Utils.CONTACT_US_BJ_ADDRESS,
                                image="/static/img/sys-img/build-beijing.jpg",
-                               url="www.zhinengzhizaoedu.com",
-                               coordinates=[116.362698, 40.051569])
+                               url=Utils.CONTACT_US_URL,
+                               coordinates=Utils.CONTACT_US_BJ_COORDINATES)
         back_dic["data"] = data
         return JsonResponse(back_dic, safe=False, json_dumps_params={'ensure_ascii': False})
 
@@ -142,6 +143,7 @@ class AboutUsView(View):
     def get(self, request, *args, **kwargs):
         back_dic = dict(code=1000, msg='')
         data = dict()
+        # 以下参数相当于公共部分，如果再次单独提取出来可能没有必要
         data[
             "简介"] = "北京智能智造科技有限公司由北京外企视业网技术有限公司（FESCO视业）发起成立，系FESCO集团教育板块之一。是一家致力于为中国智能制造产业4亿技能型人才提供职业技能培训+专业人力资源全链条服务的综合型教育服务、人力资源服务平台。"
         data["愿景"] = "打造中国最大的产业工人培训平台"
