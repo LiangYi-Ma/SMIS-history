@@ -26,12 +26,12 @@ class LoginByMsgView(View):
         """1:发送验证码；2:检查验证码"""
         if data["type"] == "1":
             mobile = data["mobile"]
-            port_head = Utils.LoginByMsgView_PORT_HEAD
-            username = Utils.LoginByMsgView_USERNAME
-            password = Utils.LoginByMsgView_PASSWORD
-            msg_head = Utils.LoginByMsgView_MSG_HEAD
+            port_head = Utils.PORT_HEAD
+            username = Utils.USERNAME
+            password = Utils.PASSWORD
+            msg_head = Utils.MSG_HEAD
             code = rd.randint(1000, 9999)
-            sign = Utils.LoginByMsgView_SIGN
+            sign = Utils.SIGN
             message = msg_head + str(code) + sign
             message_gb = urllib.parse.quote(message.encode("gb2312"))
 

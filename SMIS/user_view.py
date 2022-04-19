@@ -129,12 +129,12 @@ class ContactUsView(View):
     def get(self, request, *args, **kwargs):
         back_dic = dict(code=1000, msg='')
         data = dict()
-        data["beijing"] = dict(location=Utils.Contact_Us_Location,
-                               phone=Utils.Contact_Us_Phone,
-                               address=Utils.Contact_Us_Address,
+        data["beijing"] = dict(location=Utils.CONTACT_US_BJ_LOCATION,
+                               phone=Utils.CONTACT_US_BJ_PHONE,
+                               address=Utils.CONTACT_US_BJ_ADDRESS,
                                image="/static/img/sys-img/build-beijing.jpg",
-                               url=Utils.Contact_Us_Url,
-                               coordinates=Utils.Contact_Us_Coordinates)
+                               url=Utils.CONTACT_US_URL,
+                               coordinates=Utils.CONTACT_US_BJ_COORDINATES)
         back_dic["data"] = data
         return JsonResponse(back_dic, safe=False, json_dumps_params={'ensure_ascii': False})
 

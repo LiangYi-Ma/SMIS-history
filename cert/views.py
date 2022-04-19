@@ -2135,9 +2135,9 @@ class CustomerServiceConsultation(View):
         message = f'联系电话：{number}\n' \
                   f'咨询内容：{text}'
         # 邮箱账号
-        username = Utils.Customer_Service_User_name
+        username = Utils.CUSTOMER_SERVICE_USER_NAME
         # 邮箱授权码
-        authorization_code = Utils.Authorization_Code
+        authorization_code = Utils.AUTHORIZATION_CODE
         # 构建一个邮箱服务对象
         uuid = uuid4()
         server = zmail.server(username, authorization_code)
@@ -2147,7 +2147,7 @@ class CustomerServiceConsultation(View):
             'content_text': message,  # 纯文本或者HTML内容
         }
         # 收件人
-        mail_to = Utils.Customer_Service_Mail_To
+        mail_to = Utils.CUSTOMER_SERVICE_MAIL_TO
         try:
             # 发送邮件
             server.send_mail(mail_to, mail_body)
