@@ -1159,6 +1159,7 @@ class classEditionView(View):
                         is_online_study_exist=para["is_online_study_exist"],
                         is_practice_exist=para["is_practice_exist"]
                     )
+                    updateDateRecords.objects.using("db_cert").create(class_id=new_class)
                     # 根据属性保存实训、线上课达标标准
                     if new_class.is_practice_exist:
                         new_class.min_practice_score = para["min_practice_score"]
@@ -1274,6 +1275,20 @@ class classDetailsView(View):
 
         # 用户类型检查
         data["is_staff"] = user.is_staff or user.is_superuser
+        if not data["is_staff"]:
+            #登陆用户为学员，判断他的报名状态
+            student_id = user.id
+            try:
+                this_student = studentInfo.objects.get(student_id=student_id)
+                joint_query = classStudentCon.objects.filter(class_id_id=int(class_id), student_id=this_student)
+                if joint_query.exists():
+                    is_joint = True
+                else:
+                    is_joint = False
+            except:
+                is_joint = False
+
+            data["student_has_joint_this_class"] = is_joint
 
         this_class = this_class.first()
 
@@ -1302,7 +1317,7 @@ class classDetailsView(View):
                 teacher_id=teacher.teacher_id.teacher_id,
                 name=teacher.teacher_id.teacher_name,
                 picture=str(teacher.teacher_id.photo),
-                responsibility=teacher.teacher_responsibility,
+                responsibility=teacher.teacher_responsibility
             )
             teacher_list.append(teacher_info)
         data["teacher_list"] = teacher_list
@@ -1712,36 +1727,52 @@ class studentDetailsByIDView(View):
                 info = dict()
                 info["class_id"] = each_joined.class_id_id
                 class_student_con_id = each_joined.class_student_id
-                class_status = ""
-                for k, v in constants.CLASS_STATUS:
-                    if k == each_joined.class_id.class_status:
-                        class_status = v
-
                 info["class_info"] = dict(
+                    class_name=each_joined.class_id.class_name,
                     start_date=each_joined.class_id.class_start_date,
                     end_date=each_joined.class_id.class_end_date,
-                    class_status=class_status,
+                    class_status=each_joined.class_id.class_status,
+                    study_progress=each_joined.study_progress,
+                    practice_progress=each_joined.practice_progress,
+                    cert_progress=each_joined.cert_progress,
+                    exam_progress=each_joined.exam_progress,
+                    class_details_url="cert/" + str(each_joined.class_id_id) + "/class_details/"
                 )
-
-                study_progress = ""
-                exam_progress = ""
-                cert_progress = ""
-                practice_progress = ""
-                for k, v in constants.CERT_PROGRESS_OPTIONS:
-                    if each_joined.practice_progress == k:
-                        practice_progress = v
-                    if each_joined.cert_progress == k:
-                        cert_progress = v
-                    if each_joined.exam_progress == k:
-                        exam_progress = v
-                    if each_joined.study_progress == k:
-                        study_progress = v
-
-                info["study_progress"] = study_progress
-                info["practice_progress"] = practice_progress
-                info["exam_progress"] = exam_progress
-                info["cert_progress"] = cert_progress
-                info["class_details_url"] = "cert/" + str(each_joined.class_id_id) + "/class_details/"
+                # 笔试行制作
+                if each_joined.class_id.is_exam_exist:
+                    exam_con = classExamCon.objects.using("db_cert").get(class_id_id=each_joined.class_id_id)
+                    exam_record = examRecords.objects.using("db_cert").get(student_id_id=student_id,
+                                                                           class_exam_id=exam_con)
+                    exam_line = dict(
+                        exam_score=exam_record.exam_score,
+                        min_score=exam_con.min_score,
+                        is_passed=exam_record.is_passed()
+                    )
+                    info["exam_line"] = exam_line
+                # 线上学习
+                if each_joined.class_id.is_online_study_exist:
+                    study_record = onlineStudyRecords.objects.using("db_cert").get(
+                        class_student_id=class_student_con_id)
+                    update_record = updateDateRecords.objects.using("db_cert").get(class_id=each_joined.class_id)
+                    study_line = dict(
+                        accumulated_time=study_record.accumulated_time,
+                        latest_time=study_record.latest_time,
+                        update_date=update_record.study_update_date,
+                        min_study_time=each_joined.class_id.min_study_time,
+                        is_passed=study_record.is_passed()
+                    )
+                    info["study_line"] = study_line
+                # 实训
+                if each_joined.class_id.is_practice_exist:
+                    practice_record = practiceRecords.objects.using("db_cert").get(
+                        class_student_id=class_student_con_id)
+                    practice_line = dict(
+                        practice_score=practice_record.practice_score,
+                        available_times=practice_record.available_times,
+                        min_practice_score=each_joined.class_id.min_practice_score,
+                        is_passed=practice_record.is_passed()
+                    )
+                    info["practice_line"] = practice_line
 
                 class_joined_list.append(info)
 
@@ -1776,8 +1807,6 @@ class studentDetailsBySessionView(View):
 
         """main content of this method"""
         student_id = user.id
-        # 仅限管理员访问
-        manager = AuthorityManager(user_obj=user)
 
         try:
             this_student = studentInfo.objects.using("db_cert").get(student_id=student_id)
@@ -1824,36 +1853,49 @@ class studentDetailsBySessionView(View):
                 info = dict()
                 info["class_id"] = each_joined.class_id_id
                 class_student_con_id = each_joined.class_student_id
-                class_status = ""
-                for k, v in constants.CLASS_STATUS:
-                    if k == each_joined.class_id.class_status:
-                        class_status = v
-
                 info["class_info"] = dict(
+                    class_name=each_joined.class_id.class_name,
                     start_date=each_joined.class_id.class_start_date,
                     end_date=each_joined.class_id.class_end_date,
-                    class_status=class_status,
+                    class_status=each_joined.class_id.class_status,
+                    study_progress=each_joined.study_progress,
+                    practice_progress=each_joined.practice_progress,
+                    cert_progress=each_joined.cert_progress,
+                    exam_progress=each_joined.exam_progress,
+                    class_details_url="cert/" + str(each_joined.class_id_id) + "/class_details/"
                 )
-
-                study_progress = ""
-                exam_progress = ""
-                cert_progress = ""
-                practice_progress = ""
-                for k, v in constants.CERT_PROGRESS_OPTIONS:
-                    if each_joined.practice_progress == k:
-                        practice_progress = v
-                    if each_joined.cert_progress == k:
-                        cert_progress = v
-                    if each_joined.exam_progress == k:
-                        exam_progress = v
-                    if each_joined.study_progress == k:
-                        study_progress = v
-
-                info["study_progress"] = study_progress
-                info["practice_progress"] = practice_progress
-                info["exam_progress"] = exam_progress
-                info["cert_progress"] = cert_progress
-                info["class_details_url"] = "cert/" + str(each_joined.class_id_id) + "/class_details/"
+                # 笔试行制作
+                if each_joined.class_id.is_exam_exist:
+                    exam_con = classExamCon.objects.using("db_cert").get(class_id_id=each_joined.class_id_id)
+                    exam_record = examRecords.objects.using("db_cert").get(student_id_id=student_id, class_exam_id=exam_con)
+                    exam_line = dict(
+                        exam_score=exam_record.exam_score,
+                        min_score=exam_con.min_score,
+                        is_passed=exam_record.is_passed()
+                    )
+                    info["exam_line"] = exam_line
+                # 线上学习
+                if each_joined.class_id.is_online_study_exist:
+                    study_record = onlineStudyRecords.objects.using("db_cert").get(class_student_id=class_student_con_id)
+                    update_record = updateDateRecords.objects.using("db_cert").get(class_id=each_joined.class_id)
+                    study_line = dict(
+                        accumulated_time=study_record.accumulated_time,
+                        latest_time=study_record.latest_time,
+                        update_date=update_record.study_update_date,
+                        min_study_time=each_joined.class_id.min_study_time,
+                        is_passed=study_record.is_passed()
+                    )
+                    info["study_line"] = study_line
+                # 实训
+                if each_joined.class_id.is_practice_exist:
+                    practice_record = practiceRecords.objects.using("db_cert").get(class_student_id=class_student_con_id)
+                    practice_line = dict(
+                        practice_score=practice_record.practice_score,
+                        available_times=practice_record.available_times,
+                        min_practice_score=each_joined.class_id.min_practice_score,
+                        is_passed=practice_record.is_passed()
+                    )
+                    info["practice_line"] = practice_line
 
                 class_joined_list.append(info)
 
