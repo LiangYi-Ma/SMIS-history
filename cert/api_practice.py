@@ -100,6 +100,7 @@ class studentValidationCheck(View):
 
 
 class updatePracticeRecord(View):
+    """更新学员实训过程数据、实训结果"""
     def get(self, request, *args, **kwargs):
         back_dic = dict(code=1000, msg="")
         para = json.loads(request.body.decode())
@@ -139,3 +140,18 @@ class updatePracticeRecord(View):
             back_dic["msg"] = "实训完成，最高实训成绩未更新"
             return JsonResponse(back_dic)
 
+
+class teacherValidationCheck(View):
+    """检查教师的合法性"""
+    def get(self, request, *args, **kwargs):
+        back_dic = dict(code=1000, msg="")
+
+        return JsonResponse(back_dic)
+
+
+class getPracticeProgressData(View):
+    """查询学生实训过程数据"""
+    def get(self, request, *args, **kwargs):
+        back_dic = dict(code=1000, msg="")
+
+        return JsonResponse(back_dic)

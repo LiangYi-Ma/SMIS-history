@@ -59,6 +59,6 @@ urlpatterns = [
     path('<int:cert_id>/certification_detail/', views.CertificationDetail.as_view()),
     # 课程详情
     path('<int:course_id>/course_detail/', views.CourseDetail.as_view()),
-
+    # 测试接口
     path('create_teat_data/', test_views.CreateTestData.as_view()),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

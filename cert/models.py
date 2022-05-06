@@ -299,9 +299,10 @@ class updateDateRecords(models.Model):
 
 class failedUpdateRecords(models.Model):
     """仅记录线上课更新失败日期"""
-    class_id = models.ForeignKey(classInfo, primary_key=True, verbose_name="班级id", on_delete=models.CASCADE)
+    failed_id = models.AutoField(primary_key=True, verbose_name='失败id')
+    class_id = models.ForeignKey(classInfo, verbose_name="班级id", on_delete=models.CASCADE)
     failed_date = models.DateField(verbose_name="更新失败日期", null=True, blank=True)
-    is_updated = models.BooleanField(verbose_name="是否已补更新", null=True, blank=True)
+    is_updated = models.BooleanField(verbose_name="是否已补更新", null=True, blank=True, default=False)
 
     class Meta:
         verbose_name_plural = '线上课数据更新失败记录表'
