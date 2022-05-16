@@ -299,10 +299,31 @@ class updateDateRecords(models.Model):
 
 class failedUpdateRecords(models.Model):
     """仅记录线上课更新失败日期"""
-    class_id = models.ForeignKey(classInfo, primary_key=True, verbose_name="班级id", on_delete=models.CASCADE)
+    failed_id = models.AutoField(primary_key=True, verbose_name='失败id')
+    class_id = models.ForeignKey(classInfo, verbose_name="班级id", on_delete=models.CASCADE)
     failed_date = models.DateField(verbose_name="更新失败日期", null=True, blank=True)
-    is_updated = models.BooleanField(verbose_name="是否已补更新", null=True, blank=True)
+    is_updated = models.BooleanField(verbose_name="是否已补更新", null=True, blank=True, default=False)
 
     class Meta:
         verbose_name_plural = '线上课数据更新失败记录表'
 
+
+class accessToken(models.Model):
+    """小鹅通token表"""
+    id = models.AutoField(primary_key=True, serialize=False, verbose_name='id')
+    access_token = models.CharField(blank=True, max_length=128, null=True, verbose_name='token')
+    token_expire_at = models.FloatField(blank=True, null=True)
+
+
+class PracticeProcessData(models.Model):
+    """实验过程数据存储"""
+    practice = models.AutoField(primary_key=True)
+    class_student = models.ForeignKey(classStudentCon, null=True, blank=True, on_delete=models.CASCADE)
+    process_data = models.JSONField(null=True)
+    upload_time = models.DateTimeField(auto_now=True)
+
+    def data_count(self):
+        return PracticeProcessData.objects.using("db_cert").filter(class_student_id=self.class_student_id).count()
+
+    def get_earlist_query(self):
+        return PracticeProcessData.objects.using("db_cert").filter(class_student_id=self.class_student_id).order_by("upload_time").first()

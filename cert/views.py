@@ -1048,12 +1048,12 @@ class classEditionView(View):
         session = Session.objects.get(session_key=session_key)
         uid = session.get_decoded().get('_auth_user_id')
         user = User.objects.get(pk=uid)
-        #
-        # valid_res = AuthorityManager(user_obj=user)
-        # if not valid_res.is_staff():
-        #     back_dic["code"] = 10400
-        #     back_dic["msg"] = "无权限查看"
-        #     return JsonResponse(back_dic)
+
+        valid_res = AuthorityManager(user_obj=user)
+        if not valid_res.is_staff():
+            back_dic["code"] = 10400
+            back_dic["msg"] = "无权限查看"
+            return JsonResponse(back_dic)
 
         """main content of this method"""
         '''状态不为关闭的班级'''
@@ -1273,14 +1273,16 @@ class classDetailsView(View):
             back_dic["msg"] = "该班级不存在"
             return JsonResponse(back_dic)
 
+        this_class = this_class.first()
+
         # 用户类型检查
         data["is_staff"] = user.is_staff or user.is_superuser
         if not data["is_staff"]:
             #登陆用户为学员，判断他的报名状态
             student_id = user.id
             try:
-                this_student = studentInfo.objects.get(student_id=student_id)
-                joint_query = classStudentCon.objects.filter(class_id_id=int(class_id), student_id=this_student)
+                this_student = studentInfo.objects.using("db_cert").get(student_id=student_id)
+                joint_query = classStudentCon.objects.using("db_cert").filter(class_id=this_class, student_id=this_student)
                 if joint_query.exists():
                     is_joint = True
                 else:
@@ -1289,8 +1291,6 @@ class classDetailsView(View):
                 is_joint = False
 
             data["student_has_joint_this_class"] = is_joint
-
-        this_class = this_class.first()
 
         # 班级的基本信息
         class_info = dict(
@@ -1317,7 +1317,12 @@ class classDetailsView(View):
                 teacher_id=teacher.teacher_id.teacher_id,
                 name=teacher.teacher_id.teacher_name,
                 picture=str(teacher.teacher_id.photo),
-                responsibility=teacher.teacher_responsibility
+                responsibility=teacher.teacher_responsibility,
+                field=teacher.teacher_id.teaching_field,
+                level=teacher.teacher_id.level,
+                phone=teacher.teacher_id.phone_number,
+                wechat=teacher.teacher_id.wechat_openid,
+                intro=teacher.teacher_id.self_introduction,
             )
             teacher_list.append(teacher_info)
         data["teacher_list"] = teacher_list
@@ -1617,6 +1622,7 @@ class examListSearch(View):
             back_dic["msg"] = "无权限访问"
             return JsonResponse(back_dic)
 
+        # 获取考试列表
         api_url = "https://api.xiaoe-tech.com/xe.examination.list.get/1.0.0"
         search_content = para["search_content"]
         page_index = 1
@@ -1630,9 +1636,15 @@ class examListSearch(View):
                 "page_size": 5
             }
             res = client.request("post", api_url, params)
-            sub_exam_list = res["data"]["exam_list"]
+            try:
+                sub_exam_list = res["data"]["exam_list"]
+                total_count = res["data"]["total_count"]
+            except:
+                sub_exam_list = []
+                total_count = 0
+                back_dic["msg"] = "第三方服务器不稳定，请重试"
             exam_list.extend(sub_exam_list)
-            if len(exam_list) == res["data"]["total_count"]:
+            if len(exam_list) == total_count:
                 # 跳出循环
                 continue_flag = False
             else:
@@ -2136,7 +2148,7 @@ class classStudentsManagementView(View):
 
 
 class updateOnlineStudyRecordsByHand(View):
-    def get(self, request, *args, **kwargs):
+    def post(self, request, *args, **kwargs):
         """
         手动更新线上课更新失败的记录
         :param request:

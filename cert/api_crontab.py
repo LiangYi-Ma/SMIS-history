@@ -102,6 +102,7 @@ def update_online_study_progress():
 
 
 def update_online_study_progress_by_hand(class_id, date):
+    print(class_id, date)
     xet_student_dic = get_xet_list_by_class_id(class_id)
     print(xet_student_dic)
     xet_list = list(xet_student_dic.keys())
@@ -119,12 +120,13 @@ def update_online_study_progress_by_hand(class_id, date):
                     this_record.accumulated_time += round(record["stay_time"] / 60, 2)
                     this_record.latest_time = round(record["stay_time"] / 60, 2)
                     this_record.save()
-                    try:
-                        failed_record = failedUpdateRecords.objects.using("db_cert").get(failed_date=date, class_id_id=class_id)
-                        failed_record.is_updated = True
-                        failed_record.save()
-                    except:
-                        pass
+
+        failed_record = failedUpdateRecords.objects.using("db_cert").filter(failed_date=date, class_id_id=class_id)
+        print("$$$$$$$$", failed_record.exists())
+        if failed_record.exists():
+            failed_record = failed_record.first()
+            failed_record.delete()
+
         return dict(code=1000, msg="补更新成功")
     else:
         '''请求失败'''

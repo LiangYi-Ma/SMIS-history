@@ -10,6 +10,7 @@ import json
 import os.path
 from datetime import datetime, timedelta
 from SMIS.data_utils import Utils
+from cert.models import accessToken
 
 BASE_URL = Utils.BASE_URL
 TOKEN_PATH = Utils.TOKEN_PATH
@@ -21,6 +22,7 @@ class TokenManager:
     """TokenManager类维护token功能"""
 
     def __init__(self, app_id, client_id, secret_key, grant_type):
+        self.token_record = None
         self.app_id = app_id
         self.client_id = client_id
         self.secret_key = secret_key
@@ -65,19 +67,31 @@ class TokenManager:
 
     # 从磁盘读取token
     def _read_token(self):
-        if not self.access_token and os.path.isfile(self.app_id + '_' + TOKEN_CACHE_PATH):
-            token_dict = {}
-            with open(self.app_id + '_' + TOKEN_CACHE_PATH, 'r') as f:
-                token_dict = json.load(f)
-            if token_dict['access_token']:
-                self.access_token = token_dict['access_token']
-                self.token_expire_at = datetime.fromtimestamp(
-                    token_dict['token_expire_at'])
+        record = accessToken.objects.using("db_cert").get(id=1)
+        self.access_token = record.access_token
+        if record.token_expire_at:
+            expire = record.token_expire_at
+        else:
+            expire = 0
+        self.token_expire_at = datetime.fromtimestamp(expire)
+        # if not self.access_token and os.path.isfile(self.app_id + '_' + TOKEN_CACHE_PATH):
+        #     token_dict = {}
+        #     with open(self.app_id + '_' + TOKEN_CACHE_PATH, 'r') as f:
+        #         token_dict = json.load(f)
+        #     if token_dict['access_token']:
+        #         self.access_token = token_dict['access_token']
+        #         self.token_expire_at = datetime.fromtimestamp(
+        #             token_dict['token_expire_at'])
 
     # token持久化到磁盘
     def _write_token(self):
-        with open(self.app_id + '_' + TOKEN_CACHE_PATH, 'w') as f:
-            json.dump({
-                "access_token": self.access_token,
-                "token_expire_at": datetime.timestamp(self.token_expire_at),
-            }, f)
+        record = accessToken.objects.using("db_cert").get(id=1)
+        record.access_token = self.access_token
+        record.token_expire_at = datetime.timestamp(self.token_expire_at)
+        print("》》》》：", self.access_token, self.token_expire_at)
+        record.save()
+        # with open(self.app_id + '_' + TOKEN_CACHE_PATH, 'w') as f:
+        #     json.dump({
+        #         "access_token": self.access_token,
+        #         "token_expire_at": datetime.timestamp(self.token_expire_at),
+        #     }, f)
