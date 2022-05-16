@@ -43,12 +43,18 @@ urlpatterns = [
     path('my_details/', views.studentDetailsBySessionView.as_view(), name="根据session查询学员详细信息"),
     # 补更新线上课学习时间
     path('<int:class_id>/update_online_study_record_by_hand/', views.updateOnlineStudyRecordsByHand.as_view()),
+
     # 参与实训
     path('<int:class_id>/join_practice/', practice_views.startPractice.as_view(), name="进入实训"),
     # 学员合法性验证
-    path('student_validation_check/', practice_views.studentValidationCheck.as_view(), name="学员合法性验证"),
+    path('student_validation/', practice_views.studentValidationCheck.as_view(), name="学员合法性验证"),
     # 实训结果上传
     path('upload_practice_result/', practice_views.updatePracticeRecord.as_view(), name="学员实训结果上传"),
+    # 验证教师身份
+    path('teacher_validation/', practice_views.teacherValidationCheck.as_view(), name="教师身份验证"),
+    # 查询学员实验数据
+    path('process_data/<int:student_id>/', practice_views.getPracticeProgressData.as_view(), name="查询学员实验数据"),
+
     # 客服咨询Post
     path('consultation/', views.CustomerServiceConsultation.as_view()),
     # 用户考试结果更新

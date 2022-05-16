@@ -99,3 +99,15 @@ class CreateTestData(View):
         msg = self.join_classes(res, msg)
 
         return JsonResponse(dict(code=1000, msg=msg))
+
+
+class CreatePracticeDataForUploading(View):
+    """
+    1.建立随机实验数据；
+    2.模拟实训成绩更新数据；
+    3.模拟实训过程存储数据。
+    """
+    def create_random_practice_data(self):
+        res = dict()
+
+        return res
