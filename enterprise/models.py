@@ -4,6 +4,7 @@ from django.urls import reverse
 
 from django.utils import timezone
 from taggit.managers import TaggableManager
+from rest_framework.pagination import LimitOffsetPagination
 # 让taggit支持中文标签
 from taggit.models import TagBase, GenericTaggedItemBase
 from django.utils.text import slugify
@@ -13,6 +14,7 @@ from user.models import User
 from SMIS.constants import EDUCATION_LEVELS, NATIONS, MARTIAL_CHOICES, USER_CLASSES, SEX_CHOICE, SKILL_CHOICES, \
     NATURE_CHOICES, FINANCING_STATUS_CHOICES, PROVINCES_CHOICES, TIME_UNIT_CHOICES, YEAR_CHOICES, JOB_NATURE_CHOICES, \
     ENTITY_LIST
+
 
 
 # Create your models here.
@@ -386,4 +388,18 @@ class EnterpriseCooperation(models.Model):
             return EnterpriseInfo.objects.get(id=self.enterprise_id)
         except:
             return None
+
+# 分页器，不需要迁移
+class StandardResultSetPagination(LimitOffsetPagination):
+    # 默认页尺寸，一页返回20条记录
+    default_limit = 20
+    # 页尺寸在URL中的赋值名
+    limit_query_param = "limit"
+    # 偏移量，从偏移量的数字后开始拿数据
+    offset_query_param = "offset"
+    # 页尺寸上限
+    max_limit = None
+
+
+
 
