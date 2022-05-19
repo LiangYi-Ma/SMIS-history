@@ -79,6 +79,7 @@ class EnterpriseIndexView(TemplateView):
         # return render(request, self.template_name, {"logo_image": self.logo_image, "user": user})
 
 
+
 def enterprise_info(request):
     session_dict = session_exist(request)
     if session_dict["code"] is 0:

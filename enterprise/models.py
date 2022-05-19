@@ -331,3 +331,59 @@ class Applications(models.Model):
 
     class Meta:
         verbose_name_plural = "应聘行为表"
+
+
+class PositionsData(models.Model):
+    """
+    职位数据表：浏览次数、参与次数、收藏次数、热度
+    """
+    id = models.IntegerField(primary_key=True)
+    view = models.IntegerField(default=0)
+    join = models.IntegerField(default=0)
+    collect = models.IntegerField(default=0)
+
+    def hot(self):
+        return self.view + self.join + self.collect
+
+    class Meta:
+        verbose_name_plural = "职位数据表"
+
+
+# 人才收藏表
+class JobHuntersCollection(models.Model):
+    id = models.AutoField(primary_key=True)
+    user_id = models.IntegerField(null=True, blank=True)
+    enterprise_id = models.IntegerField(null=True, blank=True)
+    collector = models.IntegerField(null=True, blank=True, verbose_name="企业协作id")
+
+    def get_user_obj(self):
+        try:
+            return User.objects.get(id=self.user_id)
+        except:
+            return None
+
+    class Meta:
+        verbose_name_plural = "求职者收藏表"
+
+
+# 协作表
+class EnterpriseCooperation(models.Model):
+    id = models.AutoField(primary_key=True)
+    user_id = models.IntegerField(null=True, blank=True)
+    enterprise_id = models.IntegerField(null=True, blank=True)
+    join_date = models.DateField(auto_now_add=True, verbose_name="加入时间")
+    is_active = models.BooleanField(default=True)
+    is_superuser = models.BooleanField(default=0)
+
+    def get_user_object(self):
+        try:
+            return User.objects.get(id=self.user_id)
+        except:
+            return None
+
+    def get_enterprise_object(self):
+        try:
+            return EnterpriseInfo.objects.get(id=self.enterprise_id)
+        except:
+            return None
+
