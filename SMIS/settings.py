@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.sites',
+    'rest_framework',
     'corsheaders',
     'user',
     'cv',
@@ -264,3 +265,10 @@ EMAIL_USER_TLS = True
 CRONJOBS = [
     ('24 18 * * *', 'cert.api_crontab.update_online_study_progress'),
 ]
+
+REST_FRAMEWORK = {
+    # 全局配置异常模块
+    'EXCEPTION_HANDLER': 'utils.exception.custom_handler',
+    # 修改默认返回JSON的renderer的类
+    'DEFAULT_RENDERER_CLASSES': ('utils.renderer.CustomRenderer',),
+}

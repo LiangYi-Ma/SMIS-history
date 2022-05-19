@@ -22,12 +22,17 @@ from SMIS.validation import enterprise_info_is_valid, position_info_is_valid, po
 from SMIS.mapper import PositionClassMapper, UserMapper, PersonalInfoMapper, EvaMapper, CvMapper, JobExMapper, \
     EduExMapper, TraExMapper, FieldMapper, RecruitmentMapper, EnterpriseInfoMapper, ApplicationsMapper, PositionMapper, \
     TaggedWhateverMapper, SettingChineseTagMapper, NumberOfStaffMapper
+from SMIS.validation import session_exist
 
 """other"""
 import random
 import json
 import datetime
-from SMIS.validation import session_exist
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from enterprise import serializers
+from .models import StandardResultSetPagination
+
 
 # Create your views here.
 
@@ -678,5 +683,36 @@ class PositionsPageView(View):
         return JsonResponse(back_dir, safe=False, json_dumps_params={'ensure_ascii': False})
 
 
-def service_page(request):
-    return render(request, "enterprise/service.html", locals())
+class PositionsListView(APIView):
+    """接口实例"""
+    def get(self, request):
+        # 最终要返回的query set
+        query_set = Position.objects.all()
+
+        # 实例化分页器
+        obj = StandardResultSetPagination()
+        # query_set:传入数据；request:获取URL请求
+        page_list = obj.paginate_queryset(query_set, request)
+
+        # 序列化分页列表
+        serializer = serializers.PositionListSerializer(instance=page_list, many=True)
+        # 获取分页后的返回结果
+        res = obj.get_paginated_response(serializer.data)
+        # restframe的返回
+        return Response(res.data)
+
+
+class PositionDetailsView(APIView):
+    def get(self, request, position_id):
+        position_obj = Position.objects.get(id=position_id)
+        serializer = serializers.PositionDetailSerializer(position_obj, many=False)
+        return Response(serializer.data)
+
+    def put(self, request, position_id):
+        data = json.loads(request.body.decode())
+        serializer = serializers.PositionDetailSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        print(data)
+
+        return Response({})

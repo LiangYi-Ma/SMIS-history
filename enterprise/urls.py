@@ -12,5 +12,9 @@ urlpatterns = [
     path("data/", views.data_analyse_page, name="data"),
     path("finding/", views.FindingView.as_view(), name="finding_people"),
     path("finding_by_search/", views.finding_page_by_search, name="finding_people_by_search"),
-    path("service/", views.service_page, name="services"),
+    # path("service/", views.service_page, name="services"),
+
+    # 接口实例
+    path("positions-list/", views.PositionsListView.as_view(), name="positions"),
+    path("position-details/<int:position_id>/", views.PositionDetailsView.as_view()),
 ]
