@@ -389,6 +389,7 @@ class EnterpriseCooperation(models.Model):
         except:
             return None
 
+
 # 分页器，不需要迁移
 class StandardResultSetPagination(LimitOffsetPagination):
     # 默认页尺寸，一页返回20条记录

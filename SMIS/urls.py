@@ -39,6 +39,7 @@ urlpatterns = [
     path('user/', include('user.urls')),
     path('enterprise/', include("enterprise.urls")),
     path('cert/', include("cert.urls")),
+    path("rbac/", include("rbac.urls")),
 
     # path('Drawing-AI/', GlobalViews.drawing_by_image, name='Drawing-AI'),
     # path('Drawing-AI/<int:image_id>/', GlobalViews.drawing_file, name='Drawing-AI-Image-ID'),
