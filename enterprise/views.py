@@ -1,4 +1,5 @@
 """django packages"""
+import cond as cond
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.http import JsonResponse
@@ -8,6 +9,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import TemplateView
 from django.views.generic.base import View
 from django.contrib.sessions.models import Session
+
+from .serializers import PersonnelRetrievalDataSerializer, PositionDataSerializer
 
 """app's models"""
 from cv.models import CV
@@ -32,7 +35,6 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from enterprise import serializers
 from .models import StandardResultSetPagination
-
 
 # Create your views here.
 
@@ -82,7 +84,6 @@ class EnterpriseIndexView(TemplateView):
         return JsonResponse(back_dir, safe=False, json_dumps_params={'ensure_ascii': False})
 
         # return render(request, self.template_name, {"logo_image": self.logo_image, "user": user})
-
 
 
 def enterprise_info(request):
@@ -685,6 +686,7 @@ class PositionsPageView(View):
 
 class PositionsListView(APIView):
     """接口实例"""
+
     def get(self, request):
         # 最终要返回的query set
         query_set = Position.objects.all()
@@ -716,3 +718,106 @@ class PositionDetailsView(APIView):
         print(data)
 
         return Response({})
+
+
+class PersonnelRetrieval(APIView):
+    # 人才检索（简历检索）
+    def get(self, request):
+        try:
+            # 需要组装成字符串模糊查询的字段
+            """
+                因为传过来的参数比较多，所以决定要通过body传参
+                request.data:获取在body中传过来的所有json参数
+                Search_term：为固定检索词，必须条件，其它条件为非必须
+            """
+            # 前端参数校验
+            data = request.data
+            ser = PersonnelRetrievalDataSerializer(data=data)
+            print(ser.is_valid(raise_exception=True))
+            # 对条件进行抽取出来,不包含必须的检索词字段
+            conditions = list(request.data.keys())
+            conditions.remove('Search_term')
+            if len(conditions) != 0:
+                # 空值检测，序列化中没办法检测空值，所以在这手动检测
+                for i in conditions:
+                    if data[i] == '':
+                        conditions.remove(i)
+            # 数据查询
+            if len(conditions) == 0:
+                query_set = CV.objects.all()
+            else:
+                sql = {}
+                # 动态拼接字符串
+                for i in range(len(conditions)):
+                    # 课程因为有多个所以需要模糊查询该字段
+                    if conditions[i] == 'courses' or conditions[i] == 'professional_skill':
+                        sql[conditions[i] + '__icontains'] = data[conditions[i]]
+                    else:
+                        sql[conditions[i]] = data[conditions[i]]
+
+                query_set = CV.objects.filter(**sql).all()
+            # 检索词查询处理
+            query_set = list(query_set)
+            query_set_new = []
+            for i in range(len(query_set)):
+                src = f'{query_set[i].industry}{query_set[i].major}{query_set[i].courses}{query_set[i].english_skill}' \
+                      f'{query_set[i].computer_skill}{query_set[i].professional_skill}{query_set[i].award}{query_set[i].talent}'
+                if data['Search_term'] in src:
+                    query_set_new.append(query_set[i])
+            query_set = query_set_new
+            # 序列化，分页处理
+            obj = StandardResultSetPagination()
+            page_list = obj.paginate_queryset(query_set, request)
+            serializer = serializers.PersonnelRetrievalSerializer(instance=page_list, many=True)
+            res = obj.get_paginated_response(serializer.data)
+            return Response(res.data)
+
+        except Exception as e:
+            print(e)
+
+
+class PositionRetrieval(APIView):
+    # 职位检索（岗位检索）
+    def get(self, request):
+        try:
+            data = request.data
+            ser = PositionDataSerializer(data=data)
+            print(ser.is_valid(raise_exception=True))
+            # 对条件进行抽取
+            conditions = list(request.data.keys())
+            conditions.remove('Search_term')
+            if len(conditions) != 0:
+                # 空值检测，序列化中没办法检测空值，所以在这手动检测
+                for i in conditions:
+                    if data[i] == '':
+                        conditions.remove(i)
+            # 数据查询
+            if len(conditions) == 0:
+                query_set = Position.objects.all()
+            else:
+                # 动态拼接条件
+                sql = {}
+                for i in range(len(conditions)):
+                    if conditions[i] == 'job_content' or conditions[i] == 'requirement':
+                        sql[conditions[i] + '__icontains']: data[conditions[i]]
+                    else:
+                        sql[conditions[i]]: data[conditions[i]]
+                print(sql)
+                query_set = Position.objects.filter(**sql).all()
+            # 检索词查询处理
+            query_set = list(query_set)
+            query_set_new = []
+            for i in range(len(query_set)):
+                src = f'{query_set[i].enterprise}{query_set[i].pst_class}{query_set[i].fullname}{query_set[i].job_content}' \
+                      f'{query_set[i].requirement}{query_set[i].extra_info}'
+                if data['Search_term'] in src:
+                    query_set_new.append(query_set[i])
+            query_set = query_set_new
+            # 分页，序列化
+            obj = StandardResultSetPagination()
+            page_list = obj.paginate_queryset(query_set, request)
+            serializer = serializers.PositionDetailSerializer(instance=page_list, many=True)
+            res = obj.get_paginated_response(serializer.data)
+            return Response(res.data)
+        except Exception as e:
+            print(e)
