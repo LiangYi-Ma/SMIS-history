@@ -726,8 +726,8 @@ class PersonnelRetrieval(APIView):
         try:
             # 需要组装成字符串模糊查询的字段
             """
-                因为传过来的参数比较多，所以决定要通过boby传参
-                request.data:获取在boby中传过来的所有json参数
+                因为传过来的参数比较多，所以决定要通过body传参
+                request.data:获取在body中传过来的所有json参数
                 Search_term：为固定检索词，必须条件，其它条件为非必须
             """
             # 前端参数校验
