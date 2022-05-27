@@ -17,4 +17,9 @@ urlpatterns = [
     # 接口实例
     path("positions-list/", views.PositionsListView.as_view(), name="positions"),
     path("position-details/<int:position_id>/", views.PositionDetailsView.as_view()),
+
+    # 人才检索
+    path("personnel-retrieval/", views.PersonnelRetrieval.as_view(), name="personnel_retrieval"),
+    # 职位检索
+    path("position-retrieval/", views.PositionRetrieval.as_view(), name="position_retrieval"),
 ]
