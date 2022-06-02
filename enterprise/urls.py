@@ -22,4 +22,11 @@ urlpatterns = [
     path("personnel-retrieval/", views.PersonnelRetrieval.as_view(), name="personnel_retrieval"),
     # 职位检索
     path("position-retrieval/", views.PositionRetrieval.as_view(), name="position_retrieval"),
+
+    # 根据session获取收藏的职位列表
+    path("position-collection-list/", views.PositionCollectionList.as_view(), name="PositionCollectionList"),
+    # 根据session添加职位收藏
+    path("position-collection-add/", views.PositionCollectionAdd.as_view(), name="PositionCollectionAdd"),
+    # 根据session和职位id取消收藏
+    path("position-collection-cancel/", views.PositionCollectionCancel.as_view(), name="PositionCollectionCancel")
 ]

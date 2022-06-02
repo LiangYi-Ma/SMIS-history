@@ -16,7 +16,6 @@ from SMIS.constants import EDUCATION_LEVELS, NATIONS, MARTIAL_CHOICES, USER_CLAS
     ENTITY_LIST
 
 
-
 # Create your models here.
 
 def is_null(value):
@@ -213,6 +212,23 @@ class Position(models.Model):
             return False
 
 
+# 职位收藏
+class PositionCollection(models.Model):
+    id = models.AutoField(primary_key=True)
+    user_id = models.IntegerField(null=True, blank=True, verbose_name="用户id")
+    position_id = models.IntegerField(null=True, blank=True, verbose_name="职位id")
+    create_time = models.DateTimeField(auto_now_add=True, null=True, verbose_name='创建时间')
+
+    def get_user_obj(self):
+        try:
+            return User.objects.get(id=self.user_id)
+        except:
+            return None
+
+    class Meta:
+        verbose_name_plural = "职位收藏表"
+
+
 # 招聘表
 class Recruitment(models.Model):
     id = models.AutoField(primary_key=True)
@@ -389,6 +405,7 @@ class EnterpriseCooperation(models.Model):
         except:
             return None
 
+
 # 分页器，不需要迁移
 class StandardResultSetPagination(LimitOffsetPagination):
     # 默认页尺寸，一页返回20条记录
@@ -399,7 +416,3 @@ class StandardResultSetPagination(LimitOffsetPagination):
     offset_query_param = "offset"
     # 页尺寸上限
     max_limit = None
-
-
-
-
