@@ -10,6 +10,8 @@ from enterprise.models import EnterpriseInfo
 from SMIS.models_utils import StandardResultSetPagination
 import json
 from user import serializers
+from SMIS import constants
+from SMIS.validation import tuple2list
 
 # Create your views here.
 
@@ -34,7 +36,25 @@ SYSTEM_GROUP_CLG_ORG_ADMIN = "College Admins"
 SYSTEM_GROUP_SCT_ORG_SUPER_ADMIN = "Society Superusers"
 SYSTEM_GROUP_SCT_ORG_ADMIN = "Society Admins"
 
-
+CODE_GROUP = USER_CLASSES = (
+    (0, "Everyone"),
+    (1, ""),
+    (2, ""),
+    (3, ""),
+    (4, ""),
+    # (2, "VIP学员/用户"),
+    # (3, "企业用户"),
+    # (4, "VIP企业用户"),
+    (1001, "Superusers"),
+    (1002, "Operation Admins"),
+    (1003, "Organization Admins"),
+    (2001, "College Superusers"),
+    (2002, "College Admins"),
+    (3001, "Society Superusers"),
+    (3002, "Society Admins"),
+    (4001, "Enterprise Superusers"),
+    (4002, "Enterprise Admins")
+)
 def get_group(user, obj=None):
     group = get_user_systemgroups(user)
     if obj:
@@ -124,7 +144,7 @@ class Roles(APIView):
     def delete(self, request, role_id):
         data = dict()
         '''
-        删除角色
+        删除角色（删除用户）
         如果系统中只剩下唯一一个超级管理，不可以删除
         '''
         try:
@@ -140,12 +160,22 @@ class Roles(APIView):
 
         return Response(data)
 
-    def add(self, request):
+    def post(self, request):
         json_data = json.loads(request.body.decode())
         data = dict()
         '''
         添加角色，给角色分组
+        json参数：user_id, role_code
         '''
+        this_userclass = models.UserClass.objects.get(user_id_id=json_data["user_id"])
+        group_list = tuple2list(CODE_GROUP)
+        if not json_data["role_code"] in group_list[0]:
+            return Response(status=404, data=dict(msg="invalid role code."))
+        idx = group_list[0].index(json_data["role_code"])
+        this_group = Group.objects.get(name=group_list[1][idx])
+        this_group.user_set.add(this_userclass.user_id)
+        this_userclass.set_class(json_data["role_code"])
+        this_userclass.save()
 
         return Response(data)
 
@@ -153,6 +183,8 @@ class Roles(APIView):
         json_data = json.loads(request.body.decode())
         data = dict()
         '''
-        更新角色
+        更新角色//目前版本与post效果一致
+        json: role_code
         '''
+
         return Response(data)

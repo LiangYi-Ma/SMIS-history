@@ -4,6 +4,8 @@
 @update_date:
 @author:Yaqi Meng
 """
+from abc import ABC
+
 from rest_framework import serializers
 from enterprise import models
 from cv import models as cv_models
@@ -73,3 +75,53 @@ class PositionDataSerializer(serializers.Serializer):
     fullname = serializers.CharField(required=False, help_text='岗位扩展名称（别称，默认为岗位类别）')
     job_content = serializers.CharField(required=False, help_text='工作内容')
     requirement = serializers.CharField(required=False, help_text='岗位基本要求')
+
+
+class CooperationListSerializer(serializers.ModelSerializer):
+    class Meta:
+        # user = serializers.CharField(source='get_user_object()')
+
+        model = models.EnterpriseCooperation
+        fields = ("user_id", "join_date", "is_superuser", "is_active")
+
+
+class CooperationSerializer(serializers.ModelSerializer):
+
+    user_id = serializers.IntegerField(required=True)
+    enterprise_id = serializers.IntegerField(required=True)
+    is_active = serializers.BooleanField(required=False)
+    is_superuser = serializers.BooleanField(required=False)
+
+    def create(self, validated_data):
+        return models.EnterpriseCooperation.objects.create(**validated_data)
+
+    def update(self, instance, validated_data):
+        instance.user_id = validated_data.get("user_id", instance.user_id)
+        instance.enterprise_id = validated_data.get("enterprise_id", instance.enterprise_id)
+        instance.is_active = validated_data.get("is_active", instance.is_active)
+        instance.is_superuser = validated_data.get("is_superuser", instance.is_superuser)
+        instance.save()
+        return instance
+
+    class Meta:
+        model = models.EnterpriseCooperation
+        fields = "__all__"
+
+
+class CollectionListSerializers(serializers.ModelSerializer):
+
+    class Meta:
+        model = models.JobHuntersCollection
+        fields = "__all__"
+
+
+class CollectionSerializers(CollectionListSerializers):
+
+    user_id = serializers.IntegerField(required=True)
+    enterprise_id = serializers.IntegerField(required=True)
+    collector = serializers.IntegerField(required=True)
+
+    def create(self, validated_data):
+        return models.JobHuntersCollection.objects.create(**validated_data)
+
+
