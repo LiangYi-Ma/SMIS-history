@@ -77,6 +77,17 @@ class PositionDataSerializer(serializers.Serializer):
     requirement = serializers.CharField(required=False, help_text='岗位基本要求')
 
 
+# 收藏列表
+class PositionCollectionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.PositionCollection
+        fields = "__all__"
+
+
+# 收藏添加和收藏取消前端参数校验
+class PositionCollectionAddSerializer(serializers.Serializer):
+    position_id = serializers.IntegerField(required=True, help_text="职位id")
+
 class CooperationListSerializer(serializers.ModelSerializer):
     class Meta:
         # user = serializers.CharField(source='get_user_object()')

@@ -19,8 +19,18 @@ urlpatterns = [
     path("position-details/<int:position_id>/", views.PositionDetailsView.as_view()),
 
     # 人才检索
-    path("personnel-retrieval/", views.PersonnelRetrieval.as_view(), name="personnel_retrieval"),
+    path("personnel-retrieval/v1.0.0/", views.PersonnelRetrieval.as_view(), name="personnel_retrieval"),
     # 职位检索
+
+    path("position-retrieval/v1.0.0/", views.PositionRetrieval.as_view(), name="position_retrieval"),
+
+    # 根据session获取收藏的职位列表
+    path("position-collection-list/v1.0.0/", views.PositionCollectionList.as_view(), name="PositionCollectionList"),
+    # 根据session添加职位收藏
+    path("position-collection-add/v1.0.0/", views.PositionCollectionAdd.as_view(), name="PositionCollectionAdd"),
+    # 根据session和职位id取消收藏
+    path("position-collection-cancel/v1.0.0/", views.PositionCollectionCancel.as_view(), name="PositionCollectionCancel")
+
     path("position-retrieval/", views.PositionRetrieval.as_view(), name="position_retrieval"),
 
     path("cooperation-hr/", include([
@@ -34,4 +44,5 @@ urlpatterns = [
     ]))
 
     # path("init_cooperation/", views.InitialCoopHRView.as_view()),
+
 ]

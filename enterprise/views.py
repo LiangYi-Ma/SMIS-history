@@ -14,10 +14,15 @@ from .serializers import PersonnelRetrievalDataSerializer, PositionDataSerialize
 
 """app's models"""
 from cv.models import CV
+
+from .models import Field, NumberOfStaff, Recruitment, EnterpriseInfo, Applications, Position, PositionCollection
+
 from .models import Field, NumberOfStaff, Recruitment, EnterpriseInfo, Applications, Position, EnterpriseCooperation, \
     JobHuntersCollection
+
 from user.models import PositionClass, User
 from enterprise.models import SettingChineseTag, TaggedWhatever
+import time
 
 """system pri-setting files"""
 from SMIS.constants import EDUCATION_LEVELS, JOB_NATURE_CHOICES, NATURE_CHOICES, FINANCING_STATUS_CHOICES, \
@@ -825,6 +830,116 @@ class PositionRetrieval(APIView):
             print(e)
 
 
+class PositionCollectionList(APIView):
+    # 岗位收藏列表
+    def get(self, request):
+        session_dict = session_exist(request)
+        if session_dict["code"] != 1000:
+            return JsonResponse(session_dict)
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        user_id = session.get_decoded().get('_auth_user_id')
+
+        query_set = PositionCollection.objects.filter(user_id=user_id).all()
+        obj = StandardResultSetPagination()
+        page_list = obj.paginate_queryset(query_set, request)
+        serializer = serializers.PositionCollectionSerializer(instance=page_list, many=True)
+        res = obj.get_paginated_response(serializer.data)
+        return Response(res.data)
+
+
+class PositionCollectionAdd(APIView):
+    # 添加岗位收藏
+    def get(self, request):
+        position_id = request.query_params
+        ser = serializers.PositionCollectionAddSerializer(data=position_id)
+        bool = ser.is_valid(raise_exception=True)
+        if bool:
+            position_id = position_id['position_id']
+            session_dict = session_exist(request)
+            if session_dict["code"] != 1000:
+                return JsonResponse(session_dict)
+            session_key = request.META.get("HTTP_AUTHORIZATION")
+            session = Session.objects.get(session_key=session_key)
+            user_id = session.get_decoded().get('_auth_user_id')
+            # 首先检查position_id是不是存在
+            position = Position.objects.filter(id=position_id).first()
+            back_dir = dict(code=200, msg="", data=dict())
+            if position:
+                # 判断收藏目标是否已经存在，如果存在将收藏时间改成当前时间
+                collect = PositionCollection.objects.filter(user_id=user_id, position_id=position_id).first()
+                if collect:
+                    curr_time = datetime.datetime.now()
+                    times = datetime.datetime.strftime(curr_time, '%Y-%m-%d %H:%M:%S')
+                    try:
+                        PositionCollection.objects.filter(user_id=user_id,
+                                                          position_id=position_id).update(
+                            create_time=times)
+                        back_dir['msg'] = '收藏成功'
+                    except Exception as e:
+                        print(e)
+                        back_dir['code'] = 5002
+                        back_dir['msg'] = "收藏失败！"
+                else:
+                    # 添加数据
+                    try:
+                        new_join = PositionCollection.objects.create(user_id=user_id, position_id=position_id)
+                        new_join.save()
+                        back_dir['msg'] = '收藏成功'
+                    except Exception as e:
+                        print(e)
+                        back_dir['code'] = 5003
+                        back_dir['msg'] = "收藏失败！"
+            else:
+                back_dir['code'] = 5001
+                back_dir['msg'] = '您收藏的职位不存在！'
+            back_dir['data'] = 'null'
+            return Response(back_dir)
+        else:
+            return Response(bool)
+
+
+class PositionCollectionCancel(APIView):
+    # 取消岗位收藏
+    def get(self, request):
+        position_id = request.query_params
+        ser = serializers.PositionCollectionAddSerializer(data=position_id)
+        bool = ser.is_valid(raise_exception=True)
+        if bool:
+            position_id = position_id['position_id']
+            session_dict = session_exist(request)
+            if session_dict["code"] != 1000:
+                return JsonResponse(session_dict)
+            session_key = request.META.get("HTTP_AUTHORIZATION")
+            session = Session.objects.get(session_key=session_key)
+            user_id = session.get_decoded().get('_auth_user_id')
+            # 检查position_id是不是存在
+            position = Position.objects.filter(id=position_id).first()
+            back_dir = dict(code=200, msg="", data=dict())
+            if position:
+                # 判断收藏目标是否已经存在，如果存在则删除
+                collect = PositionCollection.objects.filter(user_id=user_id, position_id=position_id).first()
+                if collect:
+                    try:
+                        PositionCollection.objects.filter(user_id=user_id,
+                                                          position_id=position_id).delete()
+                        back_dir['msg'] = '取消收藏成功'
+                    except Exception as e:
+                        print(e)
+                        back_dir['code'] = 5003
+                        back_dir['msg'] = "取消收藏失败！"
+                else:
+                    back_dir['code'] = 5002
+                    back_dir['msg'] = '收藏不存在'
+            else:
+                back_dir['code'] = 5001
+                back_dir['msg'] = '您取消收藏的职位不存在！'
+            back_dir['data'] = 'null'
+            return Response(back_dir)
+        else:
+            return Response(bool)
+
+          
 class HRCooperation(APIView):
     """
     get: hr_id-用户ID
@@ -1036,3 +1151,4 @@ class CollectionsView(APIView):
 #             leader_id = obj.id.id
 #             EnterpriseCooperation.objects.create(user_id=leader_id, enterprise_id=leader_id, is_active=True, is_superuser=True)
 #         return Response({})
+
