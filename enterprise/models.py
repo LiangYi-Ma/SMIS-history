@@ -357,10 +357,23 @@ class JobHuntersCollection(models.Model):
     user_id = models.IntegerField(null=True, blank=True)
     enterprise_id = models.IntegerField(null=True, blank=True)
     collector = models.IntegerField(null=True, blank=True, verbose_name="企业协作id")
+    join_date = models.DateTimeField(auto_now_add=True)
 
     def get_user_obj(self):
         try:
             return User.objects.get(id=self.user_id)
+        except:
+            return None
+
+    def get_owner(self):
+        try:
+            return EnterpriseInfo.objects.get(id=self.enterprise_id)
+        except:
+            return None
+
+    def get_creator(self):
+        try:
+            return User.objects.get(id=self.collector)
         except:
             return None
 
@@ -386,6 +399,12 @@ class EnterpriseCooperation(models.Model):
     def get_enterprise_object(self):
         try:
             return EnterpriseInfo.objects.get(id=self.enterprise_id)
+        except:
+            return None
+
+    def get_owner(self):
+        try:
+            return EnterpriseCooperation.objects.get(enterprise_id=self.enterprise_id, is_superuser=True).user_id
         except:
             return None
 

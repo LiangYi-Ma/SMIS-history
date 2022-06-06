@@ -14,7 +14,8 @@ from .serializers import PersonnelRetrievalDataSerializer, PositionDataSerialize
 
 """app's models"""
 from cv.models import CV
-from .models import Field, NumberOfStaff, Recruitment, EnterpriseInfo, Applications, Position
+from .models import Field, NumberOfStaff, Recruitment, EnterpriseInfo, Applications, Position, EnterpriseCooperation, \
+    JobHuntersCollection
 from user.models import PositionClass, User
 from enterprise.models import SettingChineseTag, TaggedWhatever
 
@@ -35,6 +36,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from enterprise import serializers
 from .models import StandardResultSetPagination
+from user import serializers as serializers_user
 
 # Create your views here.
 
@@ -489,7 +491,7 @@ class HRPageView(View):
 
 
 class PositionsPageView(View):
-    def edit_positions(para):
+    def edit_positions(self, para):
         dic = {
             'code': 1000,
             'msg': '',
@@ -821,3 +823,216 @@ class PositionRetrieval(APIView):
             return Response(res.data)
         except Exception as e:
             print(e)
+
+
+class HRCooperation(APIView):
+    """
+    get: hr_id-用户ID
+    add: 添加协作者
+    put: 更换主HR
+    delete: 删除协作者
+    """
+
+    def get(self, request, hr_id=None):
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+
+        leader_hr = User.objects.get(pk=uid)
+        Coop_query = EnterpriseCooperation.objects.get(user_id=leader_hr.id, is_superuser=True)
+        this_enterprise_id = Coop_query.enterprise_id
+        this_enterprise = EnterpriseInfo.objects.get(id=this_enterprise_id)
+        query_set = EnterpriseCooperation.objects.filter(enterprise_id=this_enterprise_id)
+
+        if not hr_id:
+            obj = StandardResultSetPagination()
+            page_list = obj.paginate_queryset(query_set, request)
+            serializer = serializers.CooperationListSerializer(instance=query_set, many=True)
+            res = obj.get_paginated_response(serializer.data)
+            return Response(res.data)
+        else:
+            this_hr = query_set.get(user_id=hr_id)
+            this_user = User.objects.get(id=hr_id)
+            serializer_user = serializers_user.UserSerializer(instance=this_user, many=False)
+            serializer_coop = serializers.CooperationListSerializer(instance=this_hr, many=False)
+            data = dict(
+                user_info=serializer_user.data,
+                hr_data=serializer_coop.data
+            )
+            return Response(data)
+
+    def post(self, request):
+        """添加协作hr"""
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return Response(session_dict, status=404)
+
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+
+        leader_hr = User.objects.get(pk=uid)
+        Coop_query = EnterpriseCooperation.objects.get(user_id=leader_hr.id, is_superuser=True)
+        this_enterprise_id = Coop_query.enterprise_id
+
+        json_data = json.loads(request.body.decode())
+        if "user_id" in json_data.keys():
+            if not User.objects.filter(id=json_data["user_id"]).exists():
+                return Response(status=404, data={"msg": "user not exist"})
+        json_data["enterprise_id"] = this_enterprise_id
+        serializer = serializers.CooperationSerializer(data=json_data)
+        if serializer.is_valid():
+            serializer.save()
+        return Response({"msg": "HR(Not leader hr) added success."})
+
+    def delete(self, request, hr_id):
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return Response(session_dict, status=404)
+
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+
+        leader_hr = User.objects.get(pk=uid)
+        Coop_query = EnterpriseCooperation.objects.get(user_id=leader_hr.id, is_superuser=True)
+        this_enterprise_id = Coop_query.enterprise_id
+
+        all_hrs = EnterpriseCooperation.objects.filter(enterprise_id=this_enterprise_id)
+        # try:
+        #     all_hrs.get(user_id=leader_hr.id, is_superuser=True)
+        # except PermissionError as e:
+        #     return Response(dict(msg=e))
+
+        try:
+            this_hr = all_hrs.get(user_id=hr_id)
+            if this_hr.is_superuser is True:
+                return Response(status=201, data=dict(msg="At least one leader HR needed."))
+            this_hr.delete()
+            return Response({})
+        except:
+            return Response(status=404, data=dict(msg="HR not exist."))
+
+    def put(self, request, hr_id):
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return Response(session_dict, status=404)
+
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+
+        leader_hr = User.objects.get(pk=uid)
+        Coop_query = EnterpriseCooperation.objects.get(user_id=leader_hr.id, is_superuser=True)
+        this_enterprise_id = Coop_query.enterprise_id
+        all_hrs = EnterpriseCooperation.objects.filter(enterprise_id=this_enterprise_id)
+
+        if all_hrs.first().get_owner() is leader_hr.id:
+            try:
+                this_hr = all_hrs.get(user_id=hr_id)
+            except:
+                return Response(status=404, data=dict(msg="HR not exist."))
+            this_hr.is_superuser = True
+            old_leader = all_hrs.get(user_id=leader_hr.id)
+            old_leader.is_superuser = False
+            old_leader.save()
+            this_hr.save()
+            return Response({})
+
+
+class CollectionsView(APIView):
+    """
+    get: 收藏列表获取，分页
+    post: 添加收藏
+    delete: 取消收藏
+    """
+
+    def get(self, request):
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+
+        this_hr = User.objects.get(id=uid)
+        this_coop = EnterpriseCooperation.objects.get(user_id=uid)
+        this_enterprise = this_coop.get_enterprise_object()
+
+        collections_queryset = JobHuntersCollection.objects.filter(enterprise_id=this_enterprise.id.id).order_by(
+            "join_date")
+        obj = StandardResultSetPagination()
+        page_list = obj.paginate_queryset(collections_queryset, request)
+
+        serializers_collection_list = serializers.CollectionListSerializers(instance=page_list, many=True)
+        res = obj.get_paginated_response(serializers_collection_list.data)
+        print(res.data)
+        return Response(res.data)
+
+    def post(self, request, user_id):
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+
+        this_hr = User.objects.get(id=uid)
+        this_coop = EnterpriseCooperation.objects.get(user_id=uid)
+        this_enterprise = this_coop.get_enterprise_object()
+
+        # 存在性检查
+        is_exist = JobHuntersCollection.objects.filter(user_id=user_id, enterprise_id=this_enterprise.id.id)
+        if is_exist.exists():
+            return Response(status=401, data={"msg": "collection exists already."})
+
+        # 数据合法性检查
+        new_data = dict(
+            user_id=user_id,
+            enterprise_id=this_enterprise.id.id,
+            collector=this_hr.id,
+        )
+        new_collect = serializers.CollectionSerializers(data=new_data)
+        if new_collect.is_valid():
+            new_collect.save()
+            return Response(data={"msg": "new collection added."})
+
+        return Response(status=400, data={"msg": "invalid data."})
+
+    def delete(self, request, user_id):
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+
+        this_hr = User.objects.get(id=uid)
+        this_coop = EnterpriseCooperation.objects.get(user_id=uid)
+        this_enterprise = this_coop.get_enterprise_object()
+
+        this_collect = JobHuntersCollection.objects.filter(user_id=user_id, enterprise_id=this_enterprise.id.id)
+        if not this_coop.is_superuser and this_collect.first().get_creator().id != this_hr.id:
+            return Response(status=403, data={"msg": "You can only delete collection you collected."})
+        if this_collect.exists():
+            this_collect.first().delete()
+            return Response(data={"msg": "collection deleted."})
+        return Response(status=400, data={"msg": "invalid collection."})
+
+
+# 协作表初始化
+# class InitialCoopHRView(APIView):
+#     def get(self, request):
+#         data = dict()
+#         all_enterprise = EnterpriseInfo.objects.all()
+#         for obj in all_enterprise:
+#             leader_id = obj.id.id
+#             EnterpriseCooperation.objects.create(user_id=leader_id, enterprise_id=leader_id, is_active=True, is_superuser=True)
+#         return Response({})

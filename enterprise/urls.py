@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, include
 from enterprise.views import *
 
 from . import views
@@ -22,4 +22,16 @@ urlpatterns = [
     path("personnel-retrieval/", views.PersonnelRetrieval.as_view(), name="personnel_retrieval"),
     # 职位检索
     path("position-retrieval/", views.PositionRetrieval.as_view(), name="position_retrieval"),
+
+    path("cooperation-hr/", include([
+        path("", views.HRCooperation.as_view()),
+        path("<int:hr_id>/", views.HRCooperation.as_view()),
+    ])),
+
+    path("collections/", include([
+        path("", views.CollectionsView.as_view()),
+        path("<int:user_id>/", views.CollectionsView.as_view()),
+    ]))
+
+    # path("init_cooperation/", views.InitialCoopHRView.as_view()),
 ]

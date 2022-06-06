@@ -41,6 +41,10 @@ def session_exist(request):
     return back_dir
 
 
+def tuple2list(tup):
+    return list(zip(*tup))
+
+
 def is_number(num):
     """
     判断字符串是否为全由数字组成，包括整数和浮点数
