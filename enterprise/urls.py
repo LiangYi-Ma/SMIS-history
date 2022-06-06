@@ -29,7 +29,7 @@ urlpatterns = [
     # 根据session添加职位收藏
     path("position-collection-add/v1.0.0/", views.PositionCollectionAdd.as_view(), name="PositionCollectionAdd"),
     # 根据session和职位id取消收藏
-    path("position-collection-cancel/v1.0.0/", views.PositionCollectionCancel.as_view(), name="PositionCollectionCancel")
+    path("position-collection-cancel/v1.0.0/", views.PositionCollectionCancel.as_view(), name="PositionCollectionCancel"),
 
     path("position-retrieval/", views.PositionRetrieval.as_view(), name="position_retrieval"),
 
