@@ -103,6 +103,34 @@ class PersonalInfo(models.Model):
         except:
             return None
 
+    def get_degree(self):
+        all_edu = EducationExperience.objects.filter(user_id_id=self.id_id)
+        res = 0
+        for e in all_edu:
+            res = max(res, e.education)
+        return res
+
+    def get_work_years(self):
+        all_works = JobExperience.objects.filter(user_id_id=self.id_id)
+        res = 0
+        for w in all_works:
+            res += w.working_years()
+        return round(res, 3)
+
+    def get_work_code(self):
+        years = self.get_work_years()
+        if years >= 10:
+            res = 6
+        elif years >= 5:
+            res = 5
+        elif years >= 3:
+            res = 4
+        elif years >= 1:
+            res = 3
+        else:
+            res = 2
+        return res
+
     class Meta:
         verbose_name_plural = '用户个人信息表'
 
