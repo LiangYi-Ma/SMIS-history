@@ -76,21 +76,6 @@ class Migration(migrations.Migration):
             field=models.BooleanField(default=0, verbose_name='是否包含实训'),
         ),
         migrations.CreateModel(
-            name='practiceRecords',
-            fields=[
-                ('practice_id', models.AutoField(primary_key=True, serialize=False, verbose_name='实训id')),
-                ('available_times', models.IntegerField(default=3, verbose_name='剩余可实训次数')),
-                ('deadline', models.DateField(blank=True, null=True, verbose_name='实训截止日期')),
-                ('practice_score', models.FloatField(blank=True, null=True, verbose_name='最高实训成绩')),
-                ('latest_update_date', models.DateField(auto_now=True, verbose_name='上次更新日期')),
-                ('class_id', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='cert.classinfo', verbose_name='班级')),
-                ('student_id', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='cert.studentinfo', verbose_name='学生')),
-            ],
-            options={
-                'verbose_name_plural': '实训结果记录表',
-            },
-        ),
-        migrations.CreateModel(
             name='classExamCon',
             fields=[
                 ('class_exam_id', models.AutoField(primary_key=True, serialize=False)),
@@ -102,16 +87,16 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': '班级-考试关联表',
             },
         ),
-        migrations.CreateModel(
-            name='examRecords',
-            fields=[
-                ('class_exam_id', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, primary_key=True, serialize=False, to='cert.classexamcon', verbose_name='')),
-                ('join_time', models.DateTimeField(blank=True, null=True, verbose_name='参加考试时间')),
-                ('exam_score', models.FloatField(blank=True, null=True, verbose_name='考试成绩')),
-                ('student_id', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='cert.studentinfo', verbose_name='学生')),
-            ],
-            options={
-                'verbose_name_plural': '考试结果记录表',
-            },
-        ),
+        # migrations.CreateModel(
+        #     name='examRecords',
+        #     fields=[
+        #         ('class_exam_id', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, primary_key=True, serialize=False, to='cert.classexamcon', verbose_name='')),
+        #         ('join_time', models.DateTimeField(blank=True, null=True, verbose_name='参加考试时间')),
+        #         ('exam_score', models.FloatField(blank=True, null=True, verbose_name='考试成绩')),
+        #         ('student_id', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='cert.studentinfo', verbose_name='学生')),
+        #     ],
+        #     options={
+        #         'verbose_name_plural': '考试结果记录表',
+        #     },
+        # ),
     ]
