@@ -41,7 +41,14 @@ urlpatterns = [
     path("collections/", include([
         path("", views.CollectionsView.as_view()),
         path("<int:user_id>/", views.CollectionsView.as_view()),
-    ]))
+    ])),
+
+    path("recommend-positions/", include([
+        path("", views.RecommendPositionWithinEnterprise.as_view()),
+        path("<int:rcm_id>/", views.RecommendPositionWithinEnterprise.as_view()),
+    ])),
+
+    path("recommend-positions-for-user/<int:user_id>/", views.RecommendPositionForUser.as_view()),
 
     # path("init_cooperation/", views.InitialCoopHRView.as_view()),
 

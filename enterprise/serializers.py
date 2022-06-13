@@ -136,3 +136,12 @@ class CollectionSerializers(CollectionListSerializers):
         return models.JobHuntersCollection.objects.create(**validated_data)
 
 
+class RecruitmentListSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        enterprise = serializers.CharField(source="enterprise")
+        position = serializers.CharField(source="position")
+
+        model = models.Recruitment
+        fields = ("id", "enterprise", "position", "city")
+

@@ -225,6 +225,18 @@ class PositionCollection(models.Model):
         except:
             return None
 
+    def get_creator(self):
+        try:
+            return User.objects.get(id=self.user_id)
+        except:
+            return None
+
+    def get_owner(self):
+        try:
+            return User.objects.get(id=self.user_id)
+        except:
+            return None
+
     class Meta:
         verbose_name_plural = "职位收藏表"
 
@@ -417,7 +429,6 @@ class EnterpriseCooperation(models.Model):
             return EnterpriseInfo.objects.get(id=self.enterprise_id)
         except:
             return None
-
 
     def get_owner(self):
         try:

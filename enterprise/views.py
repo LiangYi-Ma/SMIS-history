@@ -20,7 +20,8 @@ from .models import Field, NumberOfStaff, Recruitment, EnterpriseInfo, Applicati
 from .models import Field, NumberOfStaff, Recruitment, EnterpriseInfo, Applications, Position, EnterpriseCooperation, \
     JobHuntersCollection
 
-from user.models import PositionClass, User
+from user.models import PositionClass, User, PersonalInfo
+from user import models as user_models
 from enterprise.models import SettingChineseTag, TaggedWhatever
 import time
 
@@ -32,6 +33,7 @@ from SMIS.mapper import PositionClassMapper, UserMapper, PersonalInfoMapper, Eva
     EduExMapper, TraExMapper, FieldMapper, RecruitmentMapper, EnterpriseInfoMapper, ApplicationsMapper, PositionMapper, \
     TaggedWhateverMapper, SettingChineseTagMapper, NumberOfStaffMapper
 from SMIS.validation import session_exist
+from enterprise.distance import Distance
 
 """other"""
 import random
@@ -42,6 +44,7 @@ from rest_framework.response import Response
 from enterprise import serializers
 from .models import StandardResultSetPagination
 from user import serializers as serializers_user
+import numpy as np
 
 # Create your views here.
 
@@ -939,7 +942,7 @@ class PositionCollectionCancel(APIView):
         else:
             return Response(bool)
 
-          
+
 class HRCooperation(APIView):
     """
     get: hr_id-用户ID
@@ -1142,6 +1145,90 @@ class CollectionsView(APIView):
         return Response(status=400, data={"msg": "invalid collection."})
 
 
+class RecommendPositionWithinEnterprise(APIView):
+    """
+    get:
+    - 输入职位id，查询所属公司，按照职位相似度拟推荐顺序;
+    - 没有职位ID传递过来，则按照热门顺序返回（暂）。
+    """
+
+    def get(self, request, rcm_id=None):
+        if not rcm_id:
+            return Response(data=dict(msg="未实装"))
+        else:
+            this_recruitment = Recruitment.objects.get(id=rcm_id)
+            this_enterprise = this_recruitment.enterprise
+            other_recruitment = Recruitment.objects.filter(enterprise=this_enterprise, is_closed=False).exclude(
+                position__id=rcm_id)
+
+            # 制作参数矩阵
+            rcm = this_recruitment
+            key_words_list = [
+                [rcm.position.pst_class.parent.id, rcm.position.pst_class.id, rcm.job_experience, rcm.education,
+                 rcm.job_nature]]
+            indexes = [rcm.id]
+            for rcm in other_recruitment:
+                sub_list = [rcm.position.pst_class.parent.id, rcm.position.pst_class.id, rcm.job_experience,
+                            rcm.education, rcm.job_nature]
+                key_words_list.append(sub_list)
+                indexes.append(rcm.id)
+
+            kw_matrix = np.array(key_words_list)
+            indexes = np.array(indexes)
+
+            obj = Distance()
+            obj.mat = kw_matrix
+            obj.indexes = indexes
+            # 拿到企业内其他已发布职位的相似度顺序
+            dis = obj.compute_standard_euclidean()
+
+            # 拼接query
+            qs = []
+            for item in dis:
+                if item[0] != rcm_id:
+                    # 拼接无法指定顺序
+                    # res_queryset = res_queryset | other_recruitment.filter(id=item[0])
+                    qs.extend(other_recruitment.filter(id=item[0]))
+
+            # 实例化分页器
+            obj = StandardResultSetPagination()
+            # query_set:传入数据；request:获取URL请求
+            page_list = obj.paginate_queryset(qs, request)
+
+            serializer = serializers.RecruitmentListSerializer(instance=page_list, many=True)
+            res = obj.get_paginated_response(serializer.data)
+
+            return Response(data=dict(res=res.data))
+
+
+class RecommendPositionForUser(APIView):
+    def get(self, request, user_id):
+        """
+        get：user_id 为必需。
+        TODO：需要cv对象，此处需要决定，是按照CV来推荐还是个人。人的CV不一定存在，因此不一定有数据。
+        0.筛选项：工作经验，学位，期望薪资(需关联简历，需要再做讨论)
+        1.根据个人条件量化条件向量self_array=[工作经验，技能分数，工作意向一级分类，工作意向二级分类]
+        2.按照筛选项筛选所有在招职位rcm；
+        3.量化职位向量rcm_array = [工作经验，技能要求，工作意向一级，工作意向二级]
+        """
+
+        personal_info = PersonalInfo.objects.get(id_id=user_id)
+        work_code = personal_info.get_work_code()
+        edu_code = personal_info.get_degree()
+        any_cv = CV.objects.filter(user_id_id=user_id).order_by("update_time").first()
+        if any_cv:
+            skill_score = any_cv.english_skill + any_cv.computer_skill
+        else:
+            skill_score = 4
+        self_array = [work_code, skill_score, ]
+
+        # 第一次绝对的筛选
+        rcm_list = Recruitment.objects.filter(education__lte=edu_code, job_experience__lte=work_code)
+
+
+        return Response(data=dict())
+
+
 # 协作表初始化
 # class InitialCoopHRView(APIView):
 #     def get(self, request):
@@ -1151,4 +1238,3 @@ class CollectionsView(APIView):
 #             leader_id = obj.id.id
 #             EnterpriseCooperation.objects.create(user_id=leader_id, enterprise_id=leader_id, is_active=True, is_superuser=True)
 #         return Response({})
-
