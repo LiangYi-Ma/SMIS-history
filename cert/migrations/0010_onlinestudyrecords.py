@@ -11,17 +11,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.CreateModel(
-            name='onlineStudyRecords',
-            fields=[
-                ('online_study_id', models.AutoField(primary_key=True, serialize=False, verbose_name='实训id')),
-                ('accumulated_time', models.FloatField(default=0, verbose_name='累计时长（h）')),
-                ('latest_time', models.FloatField(default=0, verbose_name='上次新增时长（h）')),
-                ('class_id', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='cert.classinfo', verbose_name='班级')),
-                ('student_id', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='cert.studentinfo', verbose_name='学生')),
-            ],
-            options={
-                'verbose_name_plural': '线上课时长记录表',
-            },
-        ),
+
     ]
