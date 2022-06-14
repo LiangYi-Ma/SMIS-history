@@ -44,7 +44,12 @@ from rest_framework.response import Response
 from enterprise import serializers
 from .models import StandardResultSetPagination
 from user import serializers as serializers_user
+
 import numpy as np
+
+# 用于编写事务
+from django.db import transaction
+
 
 # Create your views here.
 
@@ -1238,3 +1243,253 @@ class RecommendPositionForUser(APIView):
 #             leader_id = obj.id.id
 #             EnterpriseCooperation.objects.create(user_id=leader_id, enterprise_id=leader_id, is_active=True, is_superuser=True)
 #         return Response({})
+
+
+def check_hr(enterprise_id, user_id):
+    """
+        enterprise_id:企业id
+        user_id:用户id
+        return: boolean
+        逻辑：检测在协作表（EnterpriseCooperation）中enterprise_id和user_id是否相对应，如果对应则该用户是hr
+    """
+    try:
+        data = EnterpriseCooperation.objects.filter(enterprise_id=enterprise_id, user_id=user_id).first()
+        if data:
+            return True
+        else:
+            return False
+    except Exception as e:
+        print(e)
+        return False
+
+
+class PositionData(APIView):
+    def get(self, request):
+        # 通过职位id获取职位信息，还涉及到了Recruitment招聘表返回数据为招聘表和岗位岗的所有信息)，不需要检验session
+        position_id = request.query_params
+        ser = serializers.PositionDataDelete(data=position_id)
+        bool = ser.is_valid(raise_exception=True)
+        back_dir = dict(code=200, msg="", data=dict())
+        if bool:
+            try:
+                position_id = position_id['position_id'][0]
+                data_1 = Position.objects.filter(id=position_id).first()
+                data_2 = Recruitment.objects.filter(position_id=position_id).first()
+                if data_1 and data_2:
+                    # 序列化器之前已经定义了，此处直接调用
+                    try:
+                        # 对两个表中的数据进行简单处理，并且进行组合
+                        serializer_data_1 = serializers.PositionDetailZySerializer(instance=data_1)
+                        serializer_data_1 = dict(serializer_data_1.data)
+                        serializer_data_1['position_id'] = serializer_data_1['id']
+                        serializer_data_1.pop('id')
+                        serializer_data_2 = serializers.RecruitmentDetailSerializer(instance=data_2)
+                        serializer_data_2 = dict(serializer_data_2.data)
+                        serializer_data_2['recruitment_id'] = serializer_data_2['id']
+                        serializer_data_2.pop('id')
+                        for i in serializer_data_2.keys():
+                            serializer_data_1[i] = serializer_data_2[i]
+                        back_dir['data'] = serializer_data_1
+                    except Exception as e:
+                        print(e)
+                else:
+                    back_dir['msg'] = "职位不存在！"
+            except Exception as e:
+                back_dir['msg'] = e
+            return Response(back_dir)
+        else:
+            return Response(bool)
+
+    def post(self, request):
+        # 新增职位，需要校验hr身份
+        # 校验sessiion
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        user_id = User.objects.get(id=uid)
+        back_dir = dict(code=200, msg="", data=dict())
+        if user_id:
+            # 参数校验
+            data = request.data
+            ser = serializers.PositionAdd(data=data)
+            bool = ser.is_valid(raise_exception=True)
+            if bool:
+                # 根据企业id校验hr身份，hr只能添加本公司的职位
+                enterprise = int(data['enterprise'])
+                bool_hr = check_hr(enterprise, uid)
+                if bool_hr:
+                    # 添加岗位信息和招聘信息表
+                    conditions = list(data.keys())
+                    # 空值检测，序列化中没办法检测空值，所以在这手动检测
+                    for i in conditions:
+                        if data[i] == '':
+                            conditions.remove(i)
+                    position_data = [
+                        'pst_class',
+                        'fullname',
+                        'job_content',
+                        'requirement',
+                        'extra_info']
+                    recruitment_data = ['number_of_employers',
+                                        'education',
+                                        'city',
+                                        'salary_min',
+                                        'salary_max',
+                                        'salary_unit',
+                                        'job_experience',
+                                        'job_nature',
+                                        'post_limit_time',
+                                        'salary_min',
+                                        'salary_max']
+                    # 动态拼接条件
+                    sql_position = {}
+                    sql_recruitment = {}
+                    for i in range(len(conditions)):
+                        if conditions[i] in position_data:
+                            sql_position[conditions[i]] = data[conditions[i]]
+                        elif conditions[i] in recruitment_data:
+                            sql_recruitment[conditions[i]] = data[conditions[i]]
+                    sql_position['enterprise_id'] = int(data['enterprise'])
+                    sql_recruitment['enterprise_id'] = int(data['enterprise'])
+                    try:
+                        # 因为此处新增数据是两个表同时新增，所以在这使用事务
+                        with transaction.atomic():
+                            position_new = Position.objects.create(**sql_position)
+                            sql_recruitment['position_id'] = position_new.id
+                            recruitment_new = Recruitment.objects.create(**sql_recruitment)
+                        back_dir['msg'] = "新增成功"
+                    except Exception as e:
+                        print(e)
+                        back_dir['msg'] = "新增失败"
+                else:
+                    back_dir['msg'] = "该用户不是hr"
+            else:
+                back_dir['msg'] = bool
+        else:
+            back_dir['msg'] = "用户不存在"
+        return Response(back_dir)
+
+    def put(self, request):
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        user_id = User.objects.get(id=uid)
+        back_dir = dict(code=200, msg="", data=dict())
+        if user_id:
+            # 参数校验
+            data = request.data
+            ser = serializers.PositionUpdate(data=data)
+            bool = ser.is_valid(raise_exception=True)
+            if bool:
+                # 根据职位id查找企业id
+                position_id = data['position_id']
+                check_position = Position.objects.filter(id=position_id).first()
+                if check_position:
+                    # 根据企业id校验hr身份，hr只能添加本公司的职位
+                    bool_hr = check_hr(check_position.enterprise.id_id, uid)
+                    if bool_hr:
+                        conditions = list(request.data.keys())
+                        conditions.remove('position_id')
+                        if len(conditions) != 0:
+                            # 空值检测
+                            for i in conditions:
+                                if data[i] == '':
+                                    conditions.remove(i)
+                        position_data = ['pst_class',
+                                         'fullname',
+                                         'job_content',
+                                         'requirement',
+                                         'extra_info']
+                        recruitment_data = ['number_of_employers',
+                                            'education',
+                                            'city',
+                                            'salary_min',
+                                            'salary_max',
+                                            'salary_unit',
+                                            'job_experience',
+                                            'job_nature',
+                                            'post_limit_time']
+                        # 数据查询
+                        if len(conditions) == 0:
+                            back_dir['msg'] = "没有更新项"
+                        else:
+                            # 动态拼接条件
+                            sql_position = {}
+                            sql_recruitment = {}
+                            for i in range(len(conditions)):
+                                if conditions[i] in position_data:
+                                    sql_position[conditions[i]]: data[conditions[i]]
+                                elif conditions[i] in recruitment_data:
+                                    sql_recruitment[conditions[i]]: data[conditions[i]]
+                            try:
+                                if sql_position:
+                                    position_new = Position.objects.filter(position_id=position_id).update(
+                                        **sql_position)
+                                if sql_recruitment:
+                                    recruitment_new = Recruitment.objects.filter(position_id=position_id).update(
+                                        **sql_recruitment)
+                                back_dir['msg'] = "更新成功"
+                            except Exception as e:
+                                print(e)
+                                back_dir['msg'] = "更新失败"
+                        pass
+                    else:
+                        back_dir['msg'] = "该用户不是hr"
+                else:
+                    back_dir['msg'] = "该岗位不存在"
+            else:
+                back_dir['msg'] = bool
+        else:
+            back_dir['msg'] = "用户不存在"
+        return Response(back_dir)
+
+    def delete(self, request):
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        user_id = User.objects.get(id=uid)
+        back_dir = dict(code=200, msg="", data=dict())
+        if user_id:
+            # 参数校验
+            position_id = request.query_params
+            ser = serializers.PositionDataDelete(data=position_id)
+            bool = ser.is_valid(raise_exception=True)
+            if bool:
+                # 根据职位id查找企业id
+                position_id = position_id['position_id']
+                enterprise_id = Position.objects.filter(id=position_id).first()
+                if enterprise_id:
+                    # 根据企业id校验hr身份，hr只能添加本公司的职位
+                    bool_hr = check_hr(enterprise_id.enterprise.id_id, uid)
+                    if bool_hr:
+                        # 删除数据
+                        try:
+                            with transaction.atomic():
+                                Position.objects.filter(id=position_id).delete()
+                                Recruitment.objects.filter(position_id=position_id).delete()
+                            back_dir['msg'] = "删除成功"
+                        except Exception as e:
+                            print(e)
+                            back_dir['msg'] = "删除失败"
+                    else:
+                        back_dir['msg'] = "该用户不是hr"
+                else:
+                    back_dir['msg'] = "该职位不存在"
+            else:
+                back_dir['msg'] = bool
+        else:
+            back_dir['msg'] = "用户不存在"
+        return Response(back_dir)
+

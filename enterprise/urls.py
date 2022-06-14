@@ -29,7 +29,8 @@ urlpatterns = [
     # 根据session添加职位收藏
     path("position-collection-add/v1.0.0/", views.PositionCollectionAdd.as_view(), name="PositionCollectionAdd"),
     # 根据session和职位id取消收藏
-    path("position-collection-cancel/v1.0.0/", views.PositionCollectionCancel.as_view(), name="PositionCollectionCancel"),
+    path("position-collection-cancel/v1.0.0/", views.PositionCollectionCancel.as_view(),
+         name="PositionCollectionCancel"),
 
     path("position-retrieval/", views.PositionRetrieval.as_view(), name="position_retrieval"),
 
@@ -50,6 +51,14 @@ urlpatterns = [
 
     path("recommend-positions-for-user/<int:user_id>/", views.RecommendPositionForUser.as_view()),
 
+
     # path("init_cooperation/", views.InitialCoopHRView.as_view()),
+    # 职位操作
+    path("position-make/v1.0.0/", include([
+        # 添加和更新
+        path("", views.PositionData.as_view(), name="position-add-update"),
+        # 查询和删除
+        path("<int:position_id>/", views.PositionData.as_view(), name="position-data-delete"),
+    ])),
 
 ]
