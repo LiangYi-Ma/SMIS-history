@@ -204,3 +204,20 @@ class Evaluation(models.Model):
 
     class Meta:
         verbose_name_plural = '评价表'
+
+
+class PrivacySetting(models.Model):
+    id = models.IntegerField(primary_key=True)
+    phone_hidden = models.BooleanField(blank=True, null=True, default=False)
+    name_hidden = models.BooleanField(blank=True, null=True, default=False)
+    email_hidden = models.BooleanField(blank=True, null=True, default=False)
+
+    def get_user_obj(self):
+        return User.objects.get(id=self.id)
+
+    def get_owner(self):
+        return User.objects.get(id=self.id)
+
+    class Meta:
+        verbose_name_plural = "隐私设置表"
+
