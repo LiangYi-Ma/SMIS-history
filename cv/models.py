@@ -159,3 +159,21 @@ class CV_PositionClass(models.Model):
 
     class Meta:
         verbose_name_plural = '简历-求职意向表'
+
+
+class CVFile(models.Model):
+    id = models.OneToOneField(User, verbose_name='用户ID', on_delete=models.CASCADE, primary_key=True)
+    upload_date = models.DateField(auto_now_add=True)
+    file = models.FileField(upload_to='static/files/',
+                            null=True, blank=True, verbose_name='简历文件',
+                            default=None)
+
+    def get_owner(self):
+        return self.id
+
+    def get_creator(self):
+        return self.id
+
+    class Meta:
+        verbose_name_plural = '简历上传表'
+
