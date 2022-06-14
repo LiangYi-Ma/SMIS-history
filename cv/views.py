@@ -15,9 +15,13 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Image, Table
 from reportlab.pdfgen import canvas
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
+from cv import serializers
 from cv.models import CV, CV_PositionClass
-from user.models import User, PersonalInfo
+from enterprise.models import Applications, Recruitment, StandardResultSetPagination
+from user.models import User, PersonalInfo, JobExperience, EducationExperience, Evaluation
 
 from SMIS.search import *
 
@@ -730,6 +734,7 @@ class SearchCv(View):
         back_dir["data"] = data
         return JsonResponse(back_dir, safe=False, json_dumps_params={'ensure_ascii': False})
 
+
 #
 # @login_required
 # def search_cv_page(request):
@@ -752,3 +757,213 @@ class SearchCv(View):
 #         has_q = 1
 #
 #     return render(request, 'cv/search-cv.html', locals())
+
+class CvDetail(APIView):
+    def get(self, request):
+        """
+        接口业务流程：
+            1：检验session
+            2：校验简历id所在的简历是否存在
+            3：根据简历id获取信息，因为简历中的信息来自不同的表，需要组装数据
+              3.1：个人信息部分
+                3.1.1：查找cv表中的用户id
+                3.1.2：通过用户id，在用户表查找用户姓名，性别，年龄，联系电话，头像
+                3.1.3：通过cv表查出薪资范围：数据库只存了最低
+                3.1.4：通过enterprise中的Applications应聘行为表由简历id查出招聘信息，然后通过招聘信息进入Recruitment招聘表，查出应聘岗位名称
+              3.2：工作经历部分
+                User模块中JobExperience表。
+              3.3：教育经历
+                User模块中EducationExperience表
+              3.4：自我评价
+                User模块中的Evaluation表，获取自我评价
+        return：
+            data = {个人信息：{}，工作经历：[{},{},{}...]，教育经历：[{},{},{}...]，自我评价：文本}
+        """
+        # 校验session
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+        back_dir = dict(code=200, msg="", data=dict())
+        data = request.query_params
+        ser = serializers.CvIdSerializers(data=data)
+        bool = ser.is_valid()
+        if bool:
+            cv_id = data['cv_id']
+            # 校验简历是否存在
+            cv_data = CV.objects.filter(id=cv_id).first()
+            if cv_data:
+                try:
+                    # 简历个人信息部分
+                    back_dir['data']['user_data'] = {}
+                    user_datas = {}
+                    # 3.1.1：查找cv表中的用户id
+                    user_id = cv_data.user_id.id
+                    # 3.1.2：通过用户id，在用户表查找用户姓名，性别，年龄，联系电话，头像
+                    user_data = PersonalInfo.objects.filter(id=user_id).first()
+                    user_name = User.objects.filter(id=user_id).first()
+                    user_datas['user_id'] = user_id
+                    user_datas['user_name'] = user_name.username
+                    user_datas['user_sex'] = user_data.sex
+                    user_datas['user_sex'] = user_data.age()
+                    user_datas['user_number'] = user_data.phone_number
+                    user_datas['user_image'] = str(user_data.image)
+                    # 3.1.3：通过cv表查出薪资范围：数据库只存了最低
+                    user_datas['user_expected_salary'] = cv_data.expected_salary
+                    # 3.1.4：通过enterprise中的Applications应聘行为表由简历id查出招聘信息，然后通过招聘信息进入Recruitment招聘表，查出应聘岗位名称
+                    applications_data = Applications.objects.filter(cv=cv_id).first()
+                    recruitment_id = applications_data.recruitment.id
+                    recruitment_data = Recruitment.objects.filter(id=recruitment_id).first()
+                    user_datas['user_position'] = recruitment_data.position.fullname
+                    back_dir['data']['user_data'] = user_datas
+
+                    # 工作经历部分
+                    back_dir['data']['job_experience'] = []
+                    jobexperience_datas = JobExperience.objects.filter(user_id=user_id).all()
+                    for i in jobexperience_datas:
+                        job_experiences = {}
+                        job_experiences['start_date'] = i.start_date
+                        job_experiences['end_date'] = i.end_date
+                        job_experiences['enterprise'] = i.enterprise
+                        if i.position:
+                            job_experiences['position'] = i.position.name
+                        else:
+                            job_experiences['position'] = 'null'
+                        job_experiences['job_content'] = i.job_content
+                        back_dir['data']['job_experience'].append(job_experiences)
+
+                    # 教育经历
+                    back_dir['data']['education_experience'] = []
+                    education_experience_datas = EducationExperience.objects.filter(user_id=user_id).all()
+                    for i in education_experience_datas:
+                        education_experiences = {}
+                        education_experiences['start_date'] = i.start_date
+                        education_experiences['end_date'] = i.end_date
+                        education_experiences['school'] = i.school
+                        education_experiences['department'] = i.department
+                        education_experiences['major'] = i.major
+                        education_experiences['education'] = i.education
+                        back_dir['data']['education_experience'].append(education_experiences)
+
+                    # 自我评价
+                    evaluation_datas = Evaluation.objects.filter(id=user_id).first()
+                    back_dir['data']['self_evaluation'] = evaluation_datas.self_evaluation
+                except Exception as e:
+                    print(e)
+                    back_dir['msg'] = "查询错误"
+                    # 有错误，则将已经查出来的数据清空
+                    back_dir['data'] = {}
+            else:
+                back_dir['msg'] = '简历不存在'
+        else:
+            error = ser.errors
+            back_dir['msg'] = error
+            # 清空数据
+            back_dir['data'] = {}
+        return Response(back_dir)
+
+
+class CvDeliver(APIView):
+    def get(self, request):
+        """
+        接口业务逻辑：
+            1：检验session
+            2：获取用户id
+            3：在cv简历表中查找简历id
+            4：通过简历id在Applications（enterprise模块）表中查找recruitment招聘信息
+            5：通过recruitment表，查找企业(enterprise)id,在EnterpriseCooperation表中查找hr的信息
+            6：使用enterprise中的分页器进行分页
+        注意：如果出现异常情况，则数据直接清空
+        """
+        # 1:校验session
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+        # 2:获取用户id
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        user_id = User.objects.get(id=uid)
+        back_dir = dict(code=200, msg="", data=dict())
+        if user_id:
+            try:
+                # 3: 简历表中查找简历id
+                cv_data = CV.objects.filter(user_id=user_id).first()
+                if cv_data:
+                    cv_id = cv_data.id
+                    # 4: 通过简历id在Applications（enterprise模块）表中查找recruitment招聘信息
+                    applications_datas = Applications.objects.filter(cv=cv_id).all()
+                    if applications_datas:
+                        back_dir['data']['deliver_list'] = []
+                        for i in applications_datas:
+                            recruitment = i.recruitment
+                            enterprise = recruitment.enterprise
+                            staff_size = enterprise.staff_size
+                            field = enterprise.field
+                            position = recruitment.position
+                            deliver_data = {}
+                            deliver_data['education'] = recruitment.education
+                            deliver_data['city'] = recruitment.city
+                            deliver_data['salary_min'] = recruitment.salary_min
+                            deliver_data['salary_max'] = recruitment.salary_max
+                            deliver_data['salary_unit'] = recruitment.salary_unit
+                            deliver_data['job_experience'] = recruitment.job_experience
+                            deliver_data['position'] = position.fullname
+                            deliver_data['enterprise_name'] = enterprise.name
+                            deliver_data['enterprise_min_number'] = staff_size.min_number
+                            deliver_data['enterprise_max_number'] = staff_size.max_number
+                            deliver_data['enterprise_field'] = field.name
+                            deliver_data['enterprise_financing_status'] = enterprise.financing_status
+                            back_dir['data']['deliver_list'].append(deliver_data)
+                        # 分页器分页
+                        obj = StandardResultSetPagination()
+                        page_list = obj.paginate_queryset(back_dir['data']['deliver_list'], request)
+                        back_dir['data']['count'] = len(back_dir['data']['deliver_list'])
+                        back_dir['data']['deliver_list'] = page_list
+                    else:
+                        back_dir['msg'] = "该用户没有简历投递记录"
+                        back_dir['data'] = {}
+                else:
+                    back_dir['msg'] = "该用户简历不存在"
+                    back_dir['data'] = {}
+            except Exception as e:
+                print(e)
+                back_dir['msg'] = "查询异常"
+                back_dir['data'] = {}
+        else:
+            back_dir['msg'] = "用户不存在"
+            back_dir['data'] = {}
+        return Response(back_dir)
+
+
+class MakePdf(APIView):
+    def get(self, request):
+        # 1:校验session
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+        # 2:获取用户id
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        user_id = User.objects.get(id=uid)
+        back_dir = dict(code=200, msg="", data=dict())
+        # 获取简历id
+        data = request.query_params
+        ser = serializers.CvIdSerializers(data=data)
+        bool = ser.is_valid()
+        if bool:
+            try:
+                cv_id = data['cv_id']
+                # 校验简历是否存在
+                cv_data = CV.objects.filter(id=cv_id).first()
+                if cv_data:
+                    return save_as_pdf(request, user_id, cv_id)
+                else:
+                    back_dir['msg'] = '简历不存在'
+            except Exception as e:
+                print(e)
+                back_dir['msg'] = '系统异常'
+        else:
+            error = ser.errors
+            back_dir['msg'] = error
+        return Response(back_dir)
