@@ -21,5 +21,7 @@ urlpatterns = [
     path('position_details/<int:rcm_id>/', views.position_details_page, name="position_details"),
     path('my-applications/', views.my_application, name="my-applications"),
     path('my_page/', views.my_page_dic, name="my_page"),
+    # 获取用户的隐私设置
+    path('privacySetting/',views.PrivacySettingList.as_view(),name="privacySetting"),
 
 ]
