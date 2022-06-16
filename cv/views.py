@@ -962,8 +962,7 @@ class MakePdf(APIView):
                 else:
                     back_dir['msg'] = '简历不存在'
             except Exception as e:
-                print(e)
-                back_dir['msg'] = '系统异常'
+                back_dir['msg'] = str(e)
         else:
             error = ser.errors
             back_dir['msg'] = error
