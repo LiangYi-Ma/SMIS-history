@@ -22,6 +22,6 @@ class PrivacySettingListSerializer(serializers.ModelSerializer):
 
 
 class PrivacySettingUpdateSerializer(serializers.Serializer):
-    phone_hidden = serializers.BooleanField(required=False, label='联系电话隐私设置', allow_null=True)
+    phone_hidden = serializers.BooleanField(required=False, label='联系电话隐私设置')
     name_hidden = serializers.BooleanField(required=False, label='姓名隐私设置')
     email_hidden = serializers.BooleanField(required=False, label='邮件隐私设置')
