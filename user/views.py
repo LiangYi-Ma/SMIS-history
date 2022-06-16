@@ -1297,7 +1297,7 @@ class PrivacySettingList(APIView):
         if session_dict["code"] is 0:
             return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
 
-        back_dic = dict(code=1000, msg="", data=dict())
+        back_dic = dict(code=200, msg="", data=dict())
         session_key = request.META.get("HTTP_AUTHORIZATION")
         session = Session.objects.get(session_key=session_key)
         uid = session.get_decoded().get('_auth_user_id')
@@ -1320,7 +1320,7 @@ class PrivacySettingList(APIView):
         session_dict = session_exist(request)
         if session_dict["code"] is 0:
             return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
-        back_dic = dict(code=1000, msg="", data=dict())
+        back_dic = dict(code=200, msg="", data=dict())
         session_key = request.META.get("HTTP_AUTHORIZATION")
         session = Session.objects.get(session_key=session_key)
         uid = session.get_decoded().get('_auth_user_id')
