@@ -1,5 +1,6 @@
 import datetime
 import os
+import time
 
 from django.contrib import auth
 from django.contrib.auth.decorators import login_required
@@ -19,7 +20,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from cv import serializers
-from cv.models import CV, CV_PositionClass
+from cv.models import CV, CV_PositionClass, CVFile
 from enterprise.models import Applications, Recruitment, StandardResultSetPagination
 from user.models import User, PersonalInfo, JobExperience, EducationExperience, Evaluation
 
@@ -961,9 +962,67 @@ class MakePdf(APIView):
                 else:
                     back_dir['msg'] = '简历不存在'
             except Exception as e:
-                print(e)
-                back_dir['msg'] = '系统异常'
+                back_dir['msg'] = str(e)
         else:
             error = ser.errors
             back_dir['msg'] = error
+        return Response(back_dir)
+
+
+class UploadCvPdf(APIView):
+    def post(self, request):
+        # 简历上传，如果简历已经存在，则替换文件
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        user = User.objects.filter(id=uid).first()
+        back_dir = dict(code=200, msg="", data=dict())
+        files = request.FILES.get('files')
+        if files:
+            file_name = files.name
+            file_format = ['pdf', 'PDF']
+            suffix = file_name[file_name.find('.') + 1:]
+            if suffix in file_format:
+                try:
+                    # 并且判断数据是否存在,存在则只需要更新数据
+                    cvfile_data = CVFile.objects.filter(id=user).first()
+                    if cvfile_data:
+                        times_now = time.strftime('%Y-%m-%d', time.localtime(time.time()))
+                        # 没有办法用更新的方式更新文件，因此使用save的方式保存更新文件
+                        # 因为save方法只能重新保存一份文件而不是替换之前的文件，因此需要先删除一下旧文件
+                        cvfile_data.file.delete()
+                        cvfile_data.file = files
+                        cvfile_data.save()
+                    else:
+                        CVFile.objects.create(id=user, file=files)
+                except Exception as e:
+                    back_dir['msg'] = str(e)
+            else:
+                back_dir['msg'] = 'File format does not match, should be PDF/pdf'
+        else:
+            back_dir['msg'] = 'The uploaded file is empty'
+        return Response(back_dir)
+
+    def delete(self, request):
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        user = User.objects.filter(id=uid).first()
+        back_dir = dict(code=200, msg="", data=dict())
+        try:
+            cvfile_data = CVFile.objects.filter(id=user).first()
+            if cvfile_data:
+                # 先删除文件，再删除数据
+                cvfile_data.file.delete()
+                cvfile_data.delete()
+            else:
+                back_dir['msg'] = 'Data does not exist'
+        except Exception as e:
+            back_dir['msg'] = str(e)
         return Response(back_dir)

@@ -6,8 +6,11 @@ from django.views.decorators.csrf import csrf_exempt
 from django.core.cache import cache
 from django.views.generic.base import View
 from django.utils.crypto import get_random_string
+from rest_framework.views import APIView
+
+from . import serializers
 from .models import User, PersonalInfo, JobExperience, TrainingExperience, \
-    EducationExperience, Evaluation, WxUserPhoneValidation
+    EducationExperience, Evaluation, WxUserPhoneValidation, PrivacySetting
 from cv.models import CV, Industry, CV_PositionClass
 from enterprise.models import Field, NumberOfStaff, Recruitment, EnterpriseInfo, Applications, Position, PositionClass
 from django.contrib.auth.decorators import login_required
@@ -40,6 +43,8 @@ from SMIS.validation import is_number
 
 
 from django.db.models import Q
+
+from .serializers import PrivacySettingListSerializer
 
 
 class SearchPositionsView(View):
@@ -1279,3 +1284,71 @@ def my_application(request):
             return JsonResponse(back_dic)
 
     return JsonResponse(back_dic, safe=False, json_dumps_params={'ensure_ascii': False})
+
+
+class PrivacySettingList(APIView):
+    """
+    get: 获取隐私设置列表
+    put: 修改隐私设置
+    """
+
+    def get(self, request):
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+
+        back_dic = dict(code=200, msg="", data=dict())
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        user = User.objects.get(pk=uid)
+        if user:
+            try:
+                privacysetting_data = PrivacySetting.objects.filter(id=uid).first()
+                if privacysetting_data:
+                    datas = PrivacySettingListSerializer(privacysetting_data)
+                    back_dic['data'] = datas.data
+                else:
+                    back_dic['msg'] = "The query result is empty"
+            except Exception as e:
+                back_dic['msg'] = "Select Error"
+        else:
+            back_dic['msg'] = "User does not exist"
+        return JsonResponse(back_dic)
+
+    def put(self, request):
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+        back_dic = dict(code=200, msg="", data=dict())
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        user = User.objects.get(pk=uid)
+        if user:
+            # 参数校验
+            datas = request.data
+            src = serializers.PrivacySettingUpdateSerializer(data=datas)
+            bool = src.is_valid()
+            if bool:
+                try:
+                    sql = {}
+                    if len(datas) > 0:
+                        for i in datas:
+                            # 校验空值
+                            if datas[i] != '':
+                                sql[i] = datas[i]
+                        if len(sql) > 0:
+                            PrivacySetting.objects.filter(id=uid).update(**sql)
+                        else:
+                            back_dic['msg'] = "The parameter cannot be empty"
+                    else:
+                        back_dic['msg'] = "Parameter conditions cannot be empty"
+                except Exception as e:
+                    back_dic['msg'] = "Select Error"
+            else:
+                error = src.errors
+                back_dic['msg'] = error
+        else:
+            back_dic['msg'] = "User does not exist"
+        return JsonResponse(back_dic)
