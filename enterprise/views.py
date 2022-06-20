@@ -34,6 +34,7 @@ from SMIS.mapper import PositionClassMapper, UserMapper, PersonalInfoMapper, Eva
     TaggedWhateverMapper, SettingChineseTagMapper, NumberOfStaffMapper
 from SMIS.validation import session_exist
 from enterprise.distance import Distance
+from enterprise.test_data_create import CreateRCM
 
 """other"""
 import random
@@ -1492,4 +1493,32 @@ class PositionData(APIView):
         else:
             back_dir['msg'] = "用户不存在"
         return Response(back_dir)
+
+
+class RE(APIView):
+    def get(self, request):
+        obj = CreateRCM()
+        obj.file = request.FILES.get("file")
+        data = obj.get_matrix()
+
+        return Response(dict(mat=data))
+
+
+class Candidates(APIView):
+    """
+    预先需要做的：在Applications表中新增数据列：负责人hr（hr：int，逻辑外键，可以为空，默认为管理者hrID）默认值可以为空，建立方法控制其hr，即当求职者投递进度为0时，hr设置为管理者hr
+    get:获取流程中的候选人列表。
+        无参数时：session用户为管理者hr时，显示：所有候选人。包括其流程进度、提交的简历id、负责他的hr
+                session用户为协作hr时，显示当前hr负责的候选人。包括其流程进度、提交的简历id
+    put:修改候选人投递进度。
+        参数为要修改的进度code和候选人记录id
+    delete:删除候选人（这个接口暂时不开放，不要写进接口文档中），只有进度不为0时可以删除，删除直接删除整条记录。
+    """
+
+
+class EnterpriseInformation(APIView):
+    """
+    get：获取企业信息。返回session用户对应的企业信息。
+    put：更新企业信息，只有管理者hr可以修改企业信息, enterpriseInfo.get_owner()可以拿到当前企业的管理者hrID。
+    """
 

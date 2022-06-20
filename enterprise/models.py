@@ -160,6 +160,12 @@ class EnterpriseInfo(models.Model):
     create_time = models.DateTimeField(auto_now_add=True, null=True, verbose_name='创建时间')
     update_time = models.DateTimeField(auto_now=True, null=True, verbose_name='更新时间')
 
+    def get_owner(self):
+        try:
+            return EnterpriseCooperation.objects.get(enterprise_id=self.id.id, is_superuser=True).user_id
+        except:
+            return None
+
     class Meta:
         verbose_name = "企业信息表"
         verbose_name_plural = verbose_name
