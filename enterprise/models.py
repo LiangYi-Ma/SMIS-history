@@ -13,7 +13,7 @@ from django.utils.translation import gettext, gettext_lazy as _
 from user.models import User
 from SMIS.constants import EDUCATION_LEVELS, NATIONS, MARTIAL_CHOICES, USER_CLASSES, SEX_CHOICE, SKILL_CHOICES, \
     NATURE_CHOICES, FINANCING_STATUS_CHOICES, PROVINCES_CHOICES, TIME_UNIT_CHOICES, YEAR_CHOICES, JOB_NATURE_CHOICES, \
-    ENTITY_LIST
+    ENTITY_LIST, PROGRESS_CHOICES
 
 
 # Create your models here.
@@ -291,7 +291,8 @@ class Applications(models.Model):
     create_time = models.DateTimeField(auto_now_add=True, null=True, verbose_name='创建时间')
     update_time = models.DateTimeField(auto_now=True, null=True, verbose_name='更新时间')
 
-    progress = models.IntegerField(null=False, verbose_name="应聘进度", default=0, blank=True)
+    progress = models.IntegerField(null=False, verbose_name="应聘进度", default=0, blank=True, choices=PROGRESS_CHOICES)
+    hr = models.ForeignKey("EnterpriseCooperation", on_delete=models.CASCADE, verbose_name="hr")
 
     def candidate_age(self):
         return self.cv.user_id.personalinfo.age()
@@ -415,6 +416,12 @@ class JobHuntersCollection(models.Model):
         verbose_name_plural = "求职者收藏表"
 
 
+IS_SUPERUSER = (
+    (1, "管理员hr"),
+    (0, "协作hr"),
+)
+
+
 # 协作表
 class EnterpriseCooperation(models.Model):
     id = models.AutoField(primary_key=True)
@@ -422,7 +429,7 @@ class EnterpriseCooperation(models.Model):
     enterprise_id = models.IntegerField(null=True, blank=True)
     join_date = models.DateField(auto_now_add=True, verbose_name="加入时间")
     is_active = models.BooleanField(default=True)
-    is_superuser = models.BooleanField(default=0)
+    is_superuser = models.BooleanField(default=0, choices=IS_SUPERUSER)
 
     def get_user_object(self):
         try:

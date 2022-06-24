@@ -45,12 +45,13 @@ from rest_framework.response import Response
 from enterprise import serializers
 from .models import StandardResultSetPagination
 from user import serializers as serializers_user
-
+from .utils.check_hr_utile import check_hr_enterprise, check_hr, hr_is_superuser, hr_appliaction
+from .utils.key_convert import enterpriseinfo_key_convert
+from .utils.initialization_applications_hr import InitializationApplicationsHr
 import numpy as np
 
 # 用于编写事务
 from django.db import transaction
-
 
 # Create your views here.
 
@@ -1231,7 +1232,6 @@ class RecommendPositionForUser(APIView):
         # 第一次绝对的筛选
         rcm_list = Recruitment.objects.filter(education__lte=edu_code, job_experience__lte=work_code)
 
-
         return Response(data=dict())
 
 
@@ -1244,24 +1244,6 @@ class RecommendPositionForUser(APIView):
 #             leader_id = obj.id.id
 #             EnterpriseCooperation.objects.create(user_id=leader_id, enterprise_id=leader_id, is_active=True, is_superuser=True)
 #         return Response({})
-
-
-def check_hr(enterprise_id, user_id):
-    """
-        enterprise_id:企业id
-        user_id:用户id
-        return: boolean
-        逻辑：检测在协作表（EnterpriseCooperation）中enterprise_id和user_id是否相对应，如果对应则该用户是hr
-    """
-    try:
-        data = EnterpriseCooperation.objects.filter(enterprise_id=enterprise_id, user_id=user_id).first()
-        if data:
-            return True
-        else:
-            return False
-    except Exception as e:
-        print(e)
-        return False
 
 
 class PositionData(APIView):
@@ -1321,7 +1303,7 @@ class PositionData(APIView):
             if bool:
                 # 根据企业id校验hr身份，hr只能添加本公司的职位
                 enterprise = int(data['enterprise'])
-                bool_hr = check_hr(enterprise, uid)
+                bool_hr = check_hr_enterprise(enterprise, uid)
                 if bool_hr:
                     # 添加岗位信息和招聘信息表
                     conditions = list(data.keys())
@@ -1395,7 +1377,7 @@ class PositionData(APIView):
                 check_position = Position.objects.filter(id=position_id).first()
                 if check_position:
                     # 根据企业id校验hr身份，hr只能添加本公司的职位
-                    bool_hr = check_hr(check_position.enterprise.id_id, uid)
+                    bool_hr = check_hr_enterprise(check_position.enterprise.id_id, uid)
                     if bool_hr:
                         conditions = list(request.data.keys())
                         conditions.remove('position_id')
@@ -1473,7 +1455,7 @@ class PositionData(APIView):
                 enterprise_id = Position.objects.filter(id=position_id).first()
                 if enterprise_id:
                     # 根据企业id校验hr身份，hr只能添加本公司的职位
-                    bool_hr = check_hr(enterprise_id.enterprise.id_id, uid)
+                    bool_hr = check_hr_enterprise(enterprise_id.enterprise.id_id, uid)
                     if bool_hr:
                         # 删除数据
                         try:
@@ -1504,21 +1486,213 @@ class RE(APIView):
         return Response(dict(mat=data))
 
 
+class ApplicationsHr(APIView):
+    """
+    初始化Applicatiion中hr，将初始化过程进行了封装，因为这部分需要多次调用，这里是为初始化hr写了一个接口
+    """
+
+    def get(self, request):
+        rets = InitializationApplicationsHr()
+        back_dir = dict(code=200, msg="", data=dict())
+        back_dir['msg'] = rets
+        return Response(back_dir)
+
+
 class Candidates(APIView):
     """
-    预先需要做的：在Applications表中新增数据列：负责人hr（hr：int，逻辑外键，可以为空，默认为管理者hrID）默认值可以为空，建立方法控制其hr，即当求职者投递进度为0时，hr设置为管理者hr
+    预先需要做的：在Applications表中新增数据列：负责人hr（hr：int，逻辑外键，可以为空，默认为管理者hrID）默认值可以为空，建立方法控制其hr，
+                即当求职者投递进度为0时，hr设置为管理者hr
     get:获取流程中的候选人列表。
         无参数时：session用户为管理者hr时，显示：所有候选人。包括其流程进度、提交的简历id、负责他的hr
                 session用户为协作hr时，显示当前hr负责的候选人。包括其流程进度、提交的简历id
     put:修改候选人投递进度。
         参数为要修改的进度code和候选人记录id
     delete:删除候选人（这个接口暂时不开放，不要写进接口文档中），只有进度不为0时可以删除，删除直接删除整条记录。
+    1：管理者hr是负责人hr。
+    2：新加字段hr
+    3：在Application中的全是候选者
     """
+
+    def get(self, request):
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        back_dir = dict(code=200, msg="", data=dict())
+        try:
+            # 检查用户是否是hr
+            enterprisecooperation = check_hr(uid)
+            if enterprisecooperation:
+                # 检查hr的类别
+                enterprisecooperations = EnterpriseCooperation.objects.filter(user_id=uid).first()
+                is_superuser_data = enterprisecooperations.is_superuser
+                if is_superuser_data:
+                    # 管理者hr,显示：所有候选人
+                    applications_datas = Applications.objects.all()
+                    # 分页
+                    obj = StandardResultSetPagination()
+                    page_list = obj.paginate_queryset(applications_datas, request)
+                    # 序列化
+                    serializer = serializers.CandidatesGetGlSerializer(instance=page_list, many=True)
+                    res = obj.get_paginated_response(serializer.data)
+                    return Response(res.data)
+                else:
+                    # 协作者hr
+                    applications_datas = Applications.objects.filter(hr=enterprisecooperation).all()
+                    obj = StandardResultSetPagination()
+                    page_list = obj.paginate_queryset(applications_datas, request)
+                    serializer = serializers.CandidatesGetXzSerializer(instance=page_list, many=True)
+                    res = obj.get_paginated_response(serializer.data)
+                    return Response(res.data)
+            else:
+                back_dir['msg'] = "该用户不是hr"
+        except Exception as e:
+            back_dir['msg'] = str(e)
+        return Response(back_dir)
+
+    def put(self, request):
+        # 要判断修改的用户是不是对应候选人的hr
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        back_dir = dict(code=200, msg="", data=dict())
+        # 校验参数
+        data = request.data
+        sre = serializers.CandidatesPutSerializer(data=data)
+        bool = sre.is_valid()
+        try:
+            if bool:
+                # 通过候选人记录id查出协作表中的用户来校验是否是对应hr，不用用户id查出来协作表去校验候选人，这样会麻烦很多
+                applications_datas = Applications.objects.filter(id=data['id']).first()
+                if applications_datas:
+                    hrs = EnterpriseCooperation.objects.filter(id=applications_datas.hr_id).first()
+                    # 因为类型不用，所以强转一下
+                    if int(hrs.user_id) == int(uid):
+                        applications_datas.progress = data['progress']
+                        applications_datas.save()
+                        back_dir['msg'] = "更新成功"
+                    else:
+                        back_dir['msg'] = "该用户不是该候选人的hr"
+                else:
+                    back_dir['msg'] = "候选人不存在"
+            else:
+                back_dir['msg'] = str(bool.errors)
+        except Exception as e:
+            back_dir['msg'] = str(e)
+        return Response(back_dir)
+
+    def delete(self, request):
+        """
+        参数：application_id
+        条件：进度不为0，并且hr需要是对应删除的候选人hr
+        """
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        back_dir = dict(code=200, msg="", data=dict())
+        src = serializers.DeleteApplicationSerializer(data=request.data)
+        bool = src.is_valid()
+        try:
+            if bool:
+                application_id = src.validated_data['application_id']
+                # 校验用户是否是hr,并且校验候选人是否存在，候选人对应的hr是否是该用户（已封装）
+                bool_app_hr, res = hr_appliaction(uid, application_id)
+                if bool_app_hr:
+                    # 判断候选人的状态是否是非0
+                    application_data = Applications.objects.filter(id=application_id).first()
+                    if application_data.progress == 0:
+                        back_dir['msg'] = "候选人状态为未开始，不可删除"
+                    else:
+                        application_data.delete()
+                        back_dir['msg'] = "删除成功！"
+                else:
+                    back_dir['msg'] = res
+            else:
+                back_dir['msg'] = str(src.errors)
+        except Exception as e:
+            back_dir['msg'] = str(e)
+        return Response(back_dir)
 
 
 class EnterpriseInformation(APIView):
     """
-    get：获取企业信息。返回session用户对应的企业信息。
+    get：获取企业信息。返回session用户对应的企业信息（用户是hr,即协作表中的对应关系）。
     put：更新企业信息，只有管理者hr可以修改企业信息, enterpriseInfo.get_owner()可以拿到当前企业的管理者hrID。
     """
 
+    def get(self, request):
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        back_dir = dict(code=200, msg="", data=dict())
+        # 首先确定用户是否是hr
+        bool_hr = check_hr(uid)
+        if bool_hr:
+            enterprisecooperation = EnterpriseCooperation.objects.filter(user_id=uid).first()
+            enterprise_data = EnterpriseInfo.objects.filter(id=enterprisecooperation.enterprise_id).first()
+            # 序列化
+            re_data = serializers.EnterpriseInfoSerializer(instance=enterprise_data)
+            back_dir['msg'] = '查询成功'
+            back_dir['data'] = re_data.data
+        else:
+            back_dir['msg'] = '该用户不是hr'
+        return Response(back_dir)
+
+    def put(self, request):
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        back_dir = dict(code=200, msg="", data=dict())
+        try:
+            # 数据校验
+            data = request.data
+            src = serializers.EnterpriseInfoCdSerializer(data=data)
+            bool_data = src.is_valid()
+            if bool_data:
+                # 按照逻辑一个hr只在一个企业中
+                # 首先确定hr是否是修改目标企业的hr
+                bool_en_hr = check_hr_enterprise(data['id'], uid)
+                if bool_en_hr:
+                    # 检测hr身份（会同时检测是否是hr）
+                    bool_hr = hr_is_superuser(uid)
+                    if bool_hr == 0:
+                        back_dir['msg'] = '用户不是管理者hr'
+                    elif bool_hr == 1:
+                        # 更新数据
+                        sql = dict(src.validated_data)
+                        sql.pop('User')  # 删除主键
+                        if sql:
+                            # 数据外键字段名转换，已封装
+                            sql = enterpriseinfo_key_convert(sql)
+                            # 此处序列化数据之后字段值全部转化成了外键的表名，需要处理
+                            enterprise_data = EnterpriseInfo.objects.filter(id=data['id']).update(**sql)
+                            back_dir['msg'] = '更新成功' if enterprise_data > 0 else '更新失败'
+                        else:
+                            back_dir['msg'] = '更新的字段为空'
+                    else:
+                        back_dir['msg'] = '用户不是hr'
+                else:
+                    back_dir['msg'] = '该用户不是修改企业hr'
+            else:
+                back_dir['msg'] = str(src.errors)
+        except Exception as e:
+            print(e)
+            back_dir['msg'] = str(e)
+        return Response(back_dir)
