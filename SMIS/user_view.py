@@ -71,7 +71,7 @@ def index(request):
     else:
         user_dic = {}
 
-    post_list = Recruitment.objects.filter(post_limit_time__lte=datetime.datetime.now()).order_by("-post_limit_time")
+    post_list = Recruitment.objects.filter(post_limit_time__gte=datetime.datetime.now(), id__gte=37).order_by("-post_limit_time")
     if post_list.count() >= 7:
         post_list = post_list[:7]
     position_list = []

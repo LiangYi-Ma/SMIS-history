@@ -71,4 +71,7 @@ urlpatterns = [
     # 获取企业信息
     path("enterprise_hr/v1.0.0/", views.EnterpriseInformation.as_view(), name="EnterpriseInformation"),
 
+    path("import-enterpriseinfo/", views.ImportCompany.as_view()),
+    path("import-position/", views.ImportPosition.as_view()),
+
 ]
