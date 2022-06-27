@@ -7,8 +7,11 @@
 from abc import ABC
 
 from rest_framework import serializers
+
+from SMIS.constants import FINANCING_STATUS_CHOICES, NATURE_CHOICES
 from enterprise import models
 from cv import models as cv_models
+from enterprise.models import NumberOfStaff, Field
 from user.models import User
 
 
@@ -135,7 +138,6 @@ class CollectionSerializers(CollectionListSerializers):
 
 
 class RecruitmentListSerializer(serializers.ModelSerializer):
-
     class Meta:
         enterprise = serializers.CharField(source="enterprise")
         position = serializers.CharField(source="position")
@@ -222,3 +224,57 @@ class RecruitmentDetailSerializer(RecruitmentSerializer):
     class Meta:
         model = models.Recruitment
         fields = "__all__"
+
+
+# 候选人部分（GET)序列化器
+# 管理者hr
+class CandidatesGetGlSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Applications
+        fields = ['cv', 'progress', 'hr']
+
+
+# 协作hr
+class CandidatesGetXzSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Applications
+        fields = ['cv', 'progress']
+
+
+# put部份参数校验
+class CandidatesPutSerializer(serializers.Serializer):
+    progress = serializers.IntegerField(required=True, help_text="进度code")
+    id = serializers.CharField(source='Applications', required=True, help_text="候选人记录id")
+
+
+# 企业信息部分序列化器
+class EnterpriseInfoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.EnterpriseInfo
+        fields = "__all__"
+
+
+# 企业信息部分用于反序列化器
+class EnterpriseInfoCdSerializer(serializers.Serializer):
+    id = serializers.CharField(source='User', required=True)
+    name = serializers.CharField(required=False, max_length=18, help_text='企业名称')
+    field = serializers.CharField(required=False, source='Field', help_text='业务领域')
+    staff_size = serializers.CharField(required=False, source='NumberOfStaff', help_text="企业规模（人）")
+    address = serializers.CharField(required=False, max_length=50, help_text="公司地址")
+    site_url = serializers.URLField(required=False, help_text="企业官网")
+    logo = serializers.ImageField(required=False, help_text='企业logo')
+    nature = serializers.ChoiceField(required=False, choices=NATURE_CHOICES, help_text='企业性质')
+    financing_status = serializers.ChoiceField(required=False, choices=FINANCING_STATUS_CHOICES, help_text="上市/投融资状态")
+    establish_year = serializers.IntegerField(required=False, help_text="企业成立年份")
+    introduction = serializers.CharField(required=False, max_length=500, help_text="企业基本介绍")
+
+
+class ApplicationsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Applications
+        fields = '__all__'
+
+
+# 删除候选人部分反序列化器
+class DeleteApplicationSerializer(serializers.Serializer):
+    application_id = serializers.IntegerField(required=True, help_text='候选人投递id')
