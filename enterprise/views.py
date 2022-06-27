@@ -9,18 +9,17 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import TemplateView
 from django.views.generic.base import View
 from django.contrib.sessions.models import Session
+from django.contrib.auth.hashers import make_password
 
 from .serializers import PersonnelRetrievalDataSerializer, PositionDataSerializer
 
 """app's models"""
 from cv.models import CV
 
-from .models import Field, NumberOfStaff, Recruitment, EnterpriseInfo, Applications, Position, PositionCollection
-
 from .models import Field, NumberOfStaff, Recruitment, EnterpriseInfo, Applications, Position, EnterpriseCooperation, \
-    JobHuntersCollection
+    JobHuntersCollection, PositionClass, PositionCollection
 
-from user.models import PositionClass, User, PersonalInfo
+from user.models import User, PersonalInfo
 from user import models as user_models
 from enterprise.models import SettingChineseTag, TaggedWhatever
 import time
@@ -50,7 +49,6 @@ import numpy as np
 
 # 用于编写事务
 from django.db import transaction
-
 
 # Create your views here.
 
@@ -1231,7 +1229,6 @@ class RecommendPositionForUser(APIView):
         # 第一次绝对的筛选
         rcm_list = Recruitment.objects.filter(education__lte=edu_code, job_experience__lte=work_code)
 
-
         return Response(data=dict())
 
 
@@ -1522,3 +1519,128 @@ class EnterpriseInformation(APIView):
     put：更新企业信息，只有管理者hr可以修改企业信息, enterpriseInfo.get_owner()可以拿到当前企业的管理者hrID。
     """
 
+
+class ImportCompany(View):
+    """
+    post: 自动读取文件，导入公司信息，临时接口，不做交互
+    """
+
+    def post(self, request):
+        # company = {
+        #     "number": "CZL1212016210",
+        #     "name": "河北普傲汽车科技有限公司",
+        #     "size": "20-99人",
+        #     "property": 2,
+        #     "address": "栾城区裕翔街159号",
+        #     "city": "石家庄",
+        #     "companyDescWithHtml": "<p>河北普傲汽车科技有限公司，成立于2019年，隶属于河北国傲投资集团。有两个工作地址，总部在石家庄，在北京有研发中心。普傲汽车科技是一家致力于汽车主动安全及智能驾驶标准化评估系统研发、测试和生产的专业化公司。目前丰田汽车已与河北普傲汽车科技有限公司共同签署一项关于AEB标准化评估的专利授权协议，将用于开发和验证汽车AEB系统的标准化安全测试评估系统。该协议是Toyota IP Solutions自2019年末成立以来首个对外的商业授权。</p> \n<p>公司在中国和美\ufffd\ufffd\ufffd同时拥有专业的研发和生产团队，拥有多名博士作为主要的技术骨干，研发人员均来自海内外著名的大学以及研究机构，研究成果已经成为SAE国际标准J3116-201706和J3157-201902以及ISO TC 22/SC 33N的核心组成部分。</p> \n<p>作为ADAS及智能驾驶技术引领新一波的高新技术研发热潮，公司将在智能驾驶技术评估平台方面实现突破，弥补中国在此项技术领域的空白，为汽车主动安全以及智能驾驶在实际路测进行之前的严格封闭道路测试提供完整的解决方案，包括测试场景、测试设备以及评估方法等，建立规模化、专业化的评测平台和技术团队。</p> \n<p>同时，普傲科技重视企业文化建设，始终坚持“以人为本”的人才理念，重视、关爱人才，建立多元化的人才培养体系，为人才提供广阔的发展平台，为公司快速、健康发展提供坚实的人才保障，公司将不断在汽车主动安全及智能驾驶领域开拓及探索，助跑国内汽车智能驾驶技术长远发展。</p> \n<p> </p> \n<p>&nbsp;</p>",
+        #     "companyWebsiteUrl": "www.prideautotech.com",
+        #     "establishedTime": "1546358400000",
+        #     "industry": "互联网/IT/电子/通信",
+        #     "financingStageName": 8
+        # }
+        with open("enterprise/outer_data/processed_company_info_code.json", "r") as f:
+            all_company_list = json.load(f)
+            for company in all_company_list:
+                check_exist = EnterpriseInfo.objects.filter(name=company["name"])
+                if not check_exist.exists():
+                    if len(company["address"]) > 50: company["address"] = company["address"][:50]
+                    if len(company["companyDescWithHtml"]) > 500: company["address"] = company["address"][:500]
+                    try:
+                        new_user = User.objects.create(username=company["number"], password=make_password("123"))
+                    except:
+                        new_user = User.objects.get(username=company["number"])
+
+                    EnterpriseInfo.objects.get_or_create(id=new_user)
+                    new_user.enterpriseinfo.name = company["name"][0:18]
+                    new_user.enterpriseinfo.size = NumberOfStaff.objects.get(id=random.randint(2, 8))
+                    new_user.enterpriseinfo.nature = company["property"]
+                    new_user.enterpriseinfo.address = company["address"]
+                    new_user.enterpriseinfo.introduction = company["companyDescWithHtml"]
+                    new_user.enterpriseinfo.site_url = company["companyWebsiteUrl"]
+                    new_user.enterpriseinfo.establish_year = random.randint(2000, 2022)
+                    try:
+                        industry = Field.objects.get(name=company["industry"])
+                    except:
+                        industry = Field.objects.get(id=36)
+                    new_user.enterpriseinfo.field = industry
+                    new_user.enterpriseinfo.financing_status = company["financingStageName"]
+                    new_user.enterpriseinfo.save()
+                    new_user.save()
+                else:
+                    this_enterprise = EnterpriseInfo.objects.get(name=company["name"])
+                    size = NumberOfStaff.objects.get(id=7)
+                    this_enterprise.staff_size = size
+                    this_enterprise.save()
+
+        return JsonResponse({})
+
+
+class ImportPosition(View):
+    """
+    post: 自动读取文件，导入职位信息和招聘信息，临时接口，不做交互
+    """
+
+    def post(self, request):
+        # position = {
+        #     "pstClass": 27,
+        #     "pstClassName1": "电气工程师",
+        #     "desc": "<p>岗位职责：</p><p>1、方案制作，根据产品需求，与机械部门工作制作，制定产品研发方案；</p><p>2、根据产品方案，绘制电气原理图、接线图以及生产部门图纸；</p><p>3、负责电气部件的选型及采购清单；</p><p>4、根据产品需求，编写产品程序，包括伺服、工控屏等；</p><p>5、负责新产品测试验证及优化调试；</p><p>6、有关电气、图文资料的收集、整理、归档，编制相关说明书。</p><p>任职要求：</p><p>1、***本科及以上学历，有较好实际工作经验的可降低要求；</p><p>2、电气、电子、机电、自动化等相关专业；</p><p>3、有相关研发设计经验，能独立完成设计、调试等工作者优先；</p><p>4、熟练掌握伺服电机的控制，了解CAN、zigbee协议优先；</p><p>        5、具备良好的组织协调能力、人际交往能力和解决问题的能力<br></p>",
+        #     "enterpriseName": "河北普傲汽车科技有限公司",
+        #     "extraInfo": "周五双休、自动驾驶、智能网联、大牛带队",
+        #     "pstName": "电气工程师",
+        #     "city": 5,
+        #     "numberNeeded": 2,
+        #     "salary": [
+        #         8000,
+        #         10000
+        #     ],
+        #     "education": 5,
+        #     "jobExp": 1,
+        #     "nature": 1,
+        #     "publishTime": "2022-06-15 15:50:12"
+        # }
+
+        with open("enterprise/outer_data/processed_position_info_code.json", "r") as f:
+            all_position_data = json.load(f)
+            for position in all_position_data:
+                this_enterprise = EnterpriseInfo.objects.get(name=position["enterpriseName"][0:18])
+                try:
+                    pst_class = PositionClass.objects.get(name=position["pstClassName1"])
+
+                except:
+                    pst_class = PositionClass.objects.get(id=position["pstClass"])
+
+                find_exist = Position.objects.filter(job_content=position["desc"][0:150])
+                if not find_exist.exists():
+                    new_position = Position.objects.create(
+                        enterprise=this_enterprise,
+                        pst_class=pst_class,
+                        fullname=position["pstName"][0:10],
+                        job_content=position["desc"][0:150],
+                        extra_info=position["extraInfo"]
+                    )
+                    new_rcm = Recruitment.objects.create(
+                        enterprise=this_enterprise,
+                        position=new_position,
+                        number_of_employers=position["numberNeeded"],
+                        education=position["education"],
+                        city=position["city"],
+                        salary_min=position["salary"][0],
+                        salary_max=position["salary"][1],
+                        salary_unit=1,
+                        job_experience=position["jobExp"],
+                        job_nature=position["nature"],
+                        post_limit_time=datetime.datetime.now().date() + datetime.timedelta(days=200),
+                    )
+                    new_position.save()
+                    new_rcm.save()
+                else:
+                    this_position = find_exist.first()
+                    this_position.pst_class = pst_class
+                    print(pst_class.name)
+                    this_position.save()
+
+                    # return Response({})
+
+        return JsonResponse({})

@@ -66,4 +66,7 @@ urlpatterns = [
     # 测试
     path("re/", views.RE.as_view()),
 
+    path("import-enterpriseinfo/", views.ImportCompany.as_view()),
+    path("import-position/", views.ImportPosition.as_view()),
+
 ]

@@ -53,7 +53,7 @@ class SearchPositionsView(View):
         back_dir = dict(code=1000, msg="", data=dict())
         data = dict()
 
-        post_list = Recruitment.objects.filter(is_closed=False, post_limit_time__gt=datetime.datetime.now()).order_by(
+        post_list = Recruitment.objects.filter(id__gte=39, post_limit_time__gt=datetime.datetime.now()).order_by(
             'post_limit_time')
         try:
             if len(list(post_list)) >= 7:
@@ -115,14 +115,14 @@ class SearchPositionsView(View):
 
         q = request.GET.get('q')
 
-        lst = split_q(q)
+        # lst = split_q(q)
+        lst = [q]
         data["query"] = q
-        if q is None:
-            post_list = Recruitment.objects.order_by('post_limit_time')
+        if q in [None, ""]:
+            post_list = Recruitment.objects.filter(post_limit_time__gte=datetime.datetime.now().date()).order_by("-post_limit_time")
             try:
-                if len(list(post_list)) >= 7:
-                    post_list = post_list[:7]
-
+                # if len(list(post_list)) >= 20:
+                #     post_list = post_list[:20]
                 position_list = []
                 for post in post_list:
                     position_list.append(RecruitmentMapper(post).as_dict())
@@ -133,12 +133,8 @@ class SearchPositionsView(View):
             data["has_q"] = False
         else:
             post_list = Recruitment.objects.filter(
-                Q(position__pst_class__name__in=lst) |
-                Q(position__fullname__in=lst) |
-                Q(enterprise__name__in=lst) |
-                Q(enterprise__name__icontains=q) |
-                Q(post_limit_time__gt=datetime.datetime.now())
-            )
+                Q(position__pst_class__name__in=lst)
+            )[:20]
 
             position_list = []
             for post in post_list:
