@@ -44,7 +44,7 @@ from rest_framework.response import Response
 from enterprise import serializers
 from .models import StandardResultSetPagination
 from user import serializers as serializers_user
-from .utils.check_hr_utile import check_hr_enterprise, check_hr, hr_is_superuser, hr_appliaction
+from .utils.check_hr_utils import check_hr_enterprise, check_hr, hr_is_superuser, hr_appliaction
 from .utils.key_convert import enterpriseinfo_key_convert
 from .utils.initialization_applications_hr import InitializationApplicationsHr
 import numpy as np
