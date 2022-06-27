@@ -1821,3 +1821,16 @@ class ImportPosition(View):
                     # return Response({})
 
         return JsonResponse({})
+
+
+class CandidatesRecommendation(APIView):
+    """
+    针对岗位的人才（简历）推荐列表。这个接口不涉及推荐算法，主要是查询和筛选
+    get：url参数-<int:rcm_id>来自Recruitment表。根据所传入的rcm_id拿到recruitment对象。推荐人才的思路是：
+        1.教育经历：硬性条件。user.models.PersonalInfo.get_degree可以知道用户的最高学历，用来做筛选
+        2.工作经验：硬性条件。user.models.PersonalInfo.get_work_code提供了计算用户工作经验的方法
+        3.工资区间：职位提供的最高工资（enterprise/models.py:260）高于用户预期工资（cv/models.py:96）就行。
+        4.岗位类别一级类别：cv.models.CV_PositionClass这个表提供了每份简历对应的求职意向，求职意向来自岗位类别enterprise.PositionClass表，都是存的二级类别，一级类别相同就可以推荐。
+        5.岗位类别二级类别：二级类别相同就放在推荐列表的前面一点。
+        需要分页，返回值应该包括一个简历列表
+    """
