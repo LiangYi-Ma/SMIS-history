@@ -54,7 +54,6 @@ urlpatterns = [
     # 针对用户条件推荐
     path("recommend-positions-for-user/<int:user_id>/", views.RecommendPositionForUser.as_view()),
 
-
     # path("init_cooperation/", views.InitialCoopHRView.as_view()),
     # 职位编辑。增删改查
     path("position-make/v1.0.0/", include([
@@ -65,6 +64,12 @@ urlpatterns = [
     ])),
     # 测试
     path("re/", views.RE.as_view()),
+    # 工具接口，初始化Applications表中hr数据（不添加接口文档）
+    path("application_hr/v1.0.0/", views.ApplicationsHr.as_view(), name="Application-Hr"),
+    # 候选人部分（删除部分不添加接口文档）
+    path("application_user/v1.0.0/", views.Candidates.as_view(), name="Application-User"),
+    # 获取企业信息
+    path("enterprise_hr/v1.0.0/", views.EnterpriseInformation.as_view(), name="EnterpriseInformation"),
 
     path("import-enterpriseinfo/", views.ImportCompany.as_view()),
     path("import-position/", views.ImportPosition.as_view()),

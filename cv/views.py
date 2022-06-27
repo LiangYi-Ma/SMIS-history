@@ -22,6 +22,7 @@ from rest_framework.views import APIView
 from cv import serializers
 from cv.models import CV, CV_PositionClass, CVFile
 from enterprise.models import Applications, Recruitment, StandardResultSetPagination
+from enterprise.utils.initialization_applications_hr import InitializationApplicationsHr
 from user.models import User, PersonalInfo, JobExperience, EducationExperience, Evaluation
 
 from SMIS.search import *
@@ -32,7 +33,7 @@ from SMIS.constants import EDUCATION_LEVELS, JOB_NATURE_CHOICES, NATURE_CHOICES,
 from SMIS.mapper import PositionClassMapper, UserMapper, PersonalInfoMapper, EvaMapper, CvMapper, JobExMapper, \
     EduExMapper, TraExMapper, FieldMapper, RecruitmentMapper, EnterpriseInfoMapper, ApplicationsMapper, PositionMapper
 from SMIS.validation import is_null
-
+from enterprise.serializers import ApplicationsSerializer
 from django.views.generic.base import View
 from django.contrib.sessions.models import Session
 from SMIS.validation import session_exist
@@ -1023,6 +1024,47 @@ class UploadCvPdf(APIView):
                 cvfile_data.delete()
             else:
                 back_dir['msg'] = 'Data does not exist'
+        except Exception as e:
+            back_dir['msg'] = str(e)
+        return Response(back_dir)
+
+
+class CvDeliverApplication(APIView):
+    def post(self, request):
+        """
+            功能：投递简历
+            逻辑：在Application中添加投递记录
+                检查招聘表中对应数据是否存在 -> 检查是不是投递过该岗位 -> 插入数据（调用公共的初始化方法对hr初始化）
+            参数：session,Recruitment_id（招聘表id）,cv_id （简历id）
+        """
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        # 留着此处的用户校验，为之后根据用户查找简历做接口的扩展
+        # uid = session.get_decoded().get('_auth_user_id')
+        # user = User.objects.filter(id=uid).first()
+        back_dir = dict(code=200, msg="", data=dict())
+        data = request.data
+        try:
+            srcs = serializers.DeliverCvSerializers(data=data)
+            bool = srcs.is_valid()
+            if bool:
+                recruitment_data = Recruitment.objects.filter(id=data['recruitment_id']).first()
+                if recruitment_data:
+                    applications_data = Applications.objects.filter(cv_id=data['cv_id'],
+                                                                    recruitment=recruitment_data).first()
+                    if applications_data:
+                        back_dir['msg'] = "您已经投递过该岗位"
+                    else:
+                        applis = Applications.objects.create(cv_id=data['cv_id'], recruitment=recruitment_data)
+                        src = InitializationApplicationsHr()
+                        back_dir['msg'] = f"投递成功，Hr初始化：{src}"
+                else:
+                    back_dir['msg'] = "招聘职位不存在"
+            else:
+                back_dir['msg'] = srcs.errors
         except Exception as e:
             back_dir['msg'] = str(e)
         return Response(back_dir)
