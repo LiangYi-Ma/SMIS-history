@@ -73,5 +73,7 @@ urlpatterns = [
 
     path("import-enterpriseinfo/", views.ImportCompany.as_view()),
     path("import-position/", views.ImportPosition.as_view()),
+    # 人才推荐
+    path("candidatesrecommendation/v1.0.0/<int:rcm_id>/",views.CandidatesRecommendation.as_view()),
 
 ]

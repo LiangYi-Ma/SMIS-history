@@ -11,7 +11,8 @@ from django.views.generic.base import View
 from django.contrib.sessions.models import Session
 from django.contrib.auth.hashers import make_password
 
-from .serializers import PersonnelRetrievalDataSerializer, PositionDataSerializer
+from .serializers import PersonnelRetrievalDataSerializer, PositionDataSerializer, CvSerializer
+from .utils.candidatesrecommendation import screen_education, screen_experience, screen_salary, screen_position_class
 
 """app's models"""
 from cv.models import CV
@@ -1827,10 +1828,39 @@ class CandidatesRecommendation(APIView):
     """
     针对岗位的人才（简历）推荐列表。这个接口不涉及推荐算法，主要是查询和筛选
     get：url参数-<int:rcm_id>来自Recruitment表。根据所传入的rcm_id拿到recruitment对象。推荐人才的思路是：
-        1.教育经历：硬性条件。user.models.PersonalInfo.get_degree可以知道用户的最高学历，用来做筛选
-        2.工作经验：硬性条件。user.models.PersonalInfo.get_work_code提供了计算用户工作经验的方法
-        3.工资区间：职位提供的最高工资（enterprise/models.py:260）高于用户预期工资（cv/models.py:96）就行。
-        4.岗位类别一级类别：cv.models.CV_PositionClass这个表提供了每份简历对应的求职意向，求职意向来自岗位类别enterprise.PositionClass表，都是存的二级类别，一级类别相同就可以推荐。
-        5.岗位类别二级类别：二级类别相同就放在推荐列表的前面一点。
+        1.教育经历：硬性条件。user.models.PersonalInfo.get_degree可以知道用户的最高学历，用来做筛选（根据education）
+        2.工作经验：硬性条件。user.models.PersonalInfo.get_work_code提供了计算用户工作经验的方法（根据job_experience）
+        3.工资区间：职位提供的最高工资（enterprise/models.py:260）高于用户预期工资（cv/models.py:96）就行（salary_max，expected_salary）。
+        4.岗位类别一级类别：cv.models.CV_PositionClass这个表提供了每份简历对应的求职意向，求职意向来自岗位类别enterprise.PositionClass表，
+                        都是存的二级类别，一级类别相同就可以推荐。
+        5.岗位类别二级类别：二级类别相同就放在推荐列表的前面一点（自定义排序）。
         需要分页，返回值应该包括一个简历列表
+    实现计划：一级一级条件筛选(不做统一的条件筛选)，尤其最后类别筛选单独筛选(直接做排序)，（筛选全部封装），校验session
     """
+
+    def get(self, request, rcm_id: int):
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        user = User.objects.filter(id=uid).first()
+        back_dir = dict(code=200, msg="", data=dict())
+        try:
+            recr_data = Recruitment.objects.filter(id=rcm_id).first()
+            cv = CV.objects.all()
+            # 条件筛选（教育经历）
+            cv_edu = screen_education(cv, recr_data.education)
+            # 条件筛选（工作经验）
+            cv_exp = screen_experience(cv_edu, recr_data.job_experience)
+            # 条件筛选（工资区间）
+            cv_sal = screen_salary(cv_exp, recr_data.salary_max)
+            # 类别筛选
+            res = screen_position_class(cv_sal, recr_data.position.pst_class.id)
+            # 简历数据序列化
+            cv_data = CvSerializer(instance=res, many=True)
+            back_dir['data'] = cv_data.data
+        except Exception as e:
+            back_dir['msg'] = str(e)
+        return Response(back_dir)

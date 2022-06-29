@@ -10,3 +10,8 @@ class CvIdSerializers(serializers.Serializer):
 class DeliverCvSerializers(serializers.Serializer):
     recruitment_id = serializers.IntegerField(required=True, help_text="招聘表id")
     cv_id = serializers.IntegerField(required=True, help_text="简历id")
+
+
+# 删除投递接口反序列化器
+class DeleteCvDetail(serializers.Serializer):
+    id = serializers.IntegerField(required=True, help_text="应聘行为表id")

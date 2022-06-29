@@ -278,3 +278,9 @@ class ApplicationsSerializer(serializers.ModelSerializer):
 # 删除候选人部分反序列化器
 class DeleteApplicationSerializer(serializers.Serializer):
     application_id = serializers.IntegerField(required=True, help_text='候选人投递id')
+
+
+class CvSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = cv_models.CV
+        fields = '__all__'

@@ -21,6 +21,7 @@ from rest_framework.views import APIView
 
 from cv import serializers
 from cv.models import CV, CV_PositionClass, CVFile
+from cv.serializers import DeleteCvDetail
 from enterprise.models import Applications, Recruitment, StandardResultSetPagination
 from enterprise.utils.initialization_applications_hr import InitializationApplicationsHr
 from user.models import User, PersonalInfo, JobExperience, EducationExperience, Evaluation
@@ -936,6 +937,80 @@ class CvDeliver(APIView):
             back_dir['data'] = {}
         return Response(back_dir)
 
+    def post(self, request):
+        """
+            功能：投递简历
+            逻辑：在Application中添加投递记录
+                检查招聘表中对应数据是否存在 -> 检查是不是投递过该岗位 -> 插入数据（调用公共的初始化方法对hr初始化）
+            参数：session,Recruitment_id（招聘表id）,cv_id （简历id）
+        """
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        # 留着此处的用户校验，为之后根据用户查找简历做接口的扩展
+        # uid = session.get_decoded().get('_auth_user_id')
+        # user = User.objects.filter(id=uid).first()
+        back_dir = dict(code=200, msg="", data=dict())
+        data = request.data
+        try:
+            srcs = serializers.DeliverCvSerializers(data=data)
+            bool = srcs.is_valid()
+            if bool:
+                recruitment_data = Recruitment.objects.filter(id=data['recruitment_id']).first()
+                if recruitment_data:
+                    applications_data = Applications.objects.filter(cv_id=data['cv_id'],
+                                                                    recruitment=recruitment_data).first()
+                    if applications_data:
+                        back_dir['msg'] = "您已经投递过该岗位"
+                    else:
+                        applis = Applications.objects.create(cv_id=data['cv_id'], recruitment=recruitment_data)
+                        src = InitializationApplicationsHr()
+                        back_dir['msg'] = f"投递成功，Hr初始化：{src}"
+                else:
+                    back_dir['msg'] = "招聘职位不存在"
+            else:
+                back_dir['msg'] = srcs.errors
+        except Exception as e:
+            back_dir['msg'] = str(e)
+        return Response(back_dir)
+
+    def delete(self, request):
+        """
+            功能：撤销投递：
+            条件：Application中的状态等于未开始
+            参数：id：application_id
+        """
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        user_id = User.objects.get(id=uid)
+        back_dir = dict(code=200, msg="", data=dict())
+        src = DeleteCvDetail(data=request.data)
+        bool = src.is_valid()
+        if bool:
+            try:
+                # 校验用户是否是需要撤下投递的用户
+                app_data = Applications.objects.filter(id=src.validated_data['id']).first()
+                if user_id == app_data.cv.user_id:
+                    # 判断状态是否是未开始状态
+                    if app_data.progress == 0:
+                        app_data.delete()
+                    else:
+                        back_dir['msg'] = "投递状态不是未开始，不可撤销"
+                else:
+                    back_dir['msg'] = "该用户不是对应投递简历用户"
+            except Exception as e:
+                # 主要是为了捕获该投递不存在的情况，因此不多做判断
+                back_dir['msg'] = str(e)
+        else:
+            back_dir['msg'] = str(back_dir)
+        return Response(back_dir)
+
 
 class MakePdf(APIView):
     def get(self, request):
@@ -1024,47 +1099,6 @@ class UploadCvPdf(APIView):
                 cvfile_data.delete()
             else:
                 back_dir['msg'] = 'Data does not exist'
-        except Exception as e:
-            back_dir['msg'] = str(e)
-        return Response(back_dir)
-
-
-class CvDeliverApplication(APIView):
-    def post(self, request):
-        """
-            功能：投递简历
-            逻辑：在Application中添加投递记录
-                检查招聘表中对应数据是否存在 -> 检查是不是投递过该岗位 -> 插入数据（调用公共的初始化方法对hr初始化）
-            参数：session,Recruitment_id（招聘表id）,cv_id （简历id）
-        """
-        session_dict = session_exist(request)
-        if session_dict["code"] is 0:
-            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
-        session_key = request.META.get("HTTP_AUTHORIZATION")
-        session = Session.objects.get(session_key=session_key)
-        # 留着此处的用户校验，为之后根据用户查找简历做接口的扩展
-        # uid = session.get_decoded().get('_auth_user_id')
-        # user = User.objects.filter(id=uid).first()
-        back_dir = dict(code=200, msg="", data=dict())
-        data = request.data
-        try:
-            srcs = serializers.DeliverCvSerializers(data=data)
-            bool = srcs.is_valid()
-            if bool:
-                recruitment_data = Recruitment.objects.filter(id=data['recruitment_id']).first()
-                if recruitment_data:
-                    applications_data = Applications.objects.filter(cv_id=data['cv_id'],
-                                                                    recruitment=recruitment_data).first()
-                    if applications_data:
-                        back_dir['msg'] = "您已经投递过该岗位"
-                    else:
-                        applis = Applications.objects.create(cv_id=data['cv_id'], recruitment=recruitment_data)
-                        src = InitializationApplicationsHr()
-                        back_dir['msg'] = f"投递成功，Hr初始化：{src}"
-                else:
-                    back_dir['msg'] = "招聘职位不存在"
-            else:
-                back_dir['msg'] = srcs.errors
         except Exception as e:
             back_dir['msg'] = str(e)
         return Response(back_dir)
