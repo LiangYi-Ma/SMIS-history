@@ -1,5 +1,8 @@
 """django packages"""
+from concurrent.futures import ThreadPoolExecutor
+
 import cond as cond
+import uuid as uuid
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.http import JsonResponse
@@ -10,8 +13,10 @@ from django.views.generic import TemplateView
 from django.views.generic.base import View
 from django.contrib.sessions.models import Session
 from django.contrib.auth.hashers import make_password
-
-from .serializers import PersonnelRetrievalDataSerializer, PositionDataSerializer
+import multiprocessing
+from .serializers import PersonnelRetrievalDataSerializer, PositionDataSerializer, CvSerializer
+from .utils import position_retrieval
+from .utils.candidatesrecommendation import screen_education, screen_experience, screen_salary, screen_position_class
 
 """app's models"""
 from cv.models import CV
@@ -739,24 +744,33 @@ class PositionDetailsView(APIView):
 class PersonnelRetrieval(APIView):
     # 人才检索（简历检索）
     def get(self, request):
+        back_dir = dict(code=200, msg="", data=dict())
         try:
             # 需要组装成字符串模糊查询的字段
             """
-                因为传过来的参数比较多，所以决定要通过body传参
-                request.data:获取在body中传过来的所有json参数
                 Search_term：为固定检索词，必须条件，其它条件为非必须
             """
             # 前端参数校验
-            data = request.data
+            data = request.query_params
             ser = PersonnelRetrievalDataSerializer(data=data)
-            print(ser.is_valid(raise_exception=True))
+            if not ser.is_valid():
+                back_dir['msg'] = ser.errors
+                return Response(back_dir)
             # 对条件进行抽取出来,不包含必须的检索词字段
-            conditions = list(request.data.keys())
+            conditions = list(data.keys())
             conditions.remove('Search_term')
             if len(conditions) != 0:
                 # 空值检测，序列化中没办法检测空值，所以在这手动检测
+                query = ['Search_term',
+                         'industry',
+                         'major',
+                         'courses',
+                         'english_skill',
+                         'computer_skill',
+                         'expected_salary',
+                         'professional_skill']
                 for i in conditions:
-                    if data[i] == '':
+                    if data[i] == '' or i not in query:
                         conditions.remove(i)
             # 数据查询
             if len(conditions) == 0:
@@ -786,57 +800,171 @@ class PersonnelRetrieval(APIView):
             page_list = obj.paginate_queryset(query_set, request)
             serializer = serializers.PersonnelRetrievalSerializer(instance=page_list, many=True)
             res = obj.get_paginated_response(serializer.data)
-            return Response(res.data)
-
+            back_dir.pop('data')
+            if len(res.data['results']) == 0:
+                back_dir['msg'] = '无数据'
+            back_dir = {**back_dir, **res.data}
         except Exception as e:
-            print(e)
+            back_dir['msg'] = str(e)
+            back_dir['data'] = ''
+        return Response(back_dir)
 
 
 class PositionRetrieval(APIView):
-    # 职位检索（岗位检索）
+
+    # 职位检索（岗位检索新）
     def get(self, request):
-        try:
-            data = request.data
-            ser = PositionDataSerializer(data=data)
-            print(ser.is_valid(raise_exception=True))
-            # 对条件进行抽取
-            conditions = list(request.data.keys())
-            conditions.remove('Search_term')
-            if len(conditions) != 0:
-                # 空值检测，序列化中没办法检测空值，所以在这手动检测
-                for i in conditions:
-                    if data[i] == '':
-                        conditions.remove(i)
-            # 数据查询
-            if len(conditions) == 0:
-                query_set = Position.objects.all()
-            else:
-                # 动态拼接条件
-                sql = {}
-                for i in range(len(conditions)):
-                    if conditions[i] == 'job_content' or conditions[i] == 'requirement':
-                        sql[conditions[i] + '__icontains']: data[conditions[i]]
-                    else:
-                        sql[conditions[i]]: data[conditions[i]]
-                print(sql)
-                query_set = Position.objects.filter(**sql).all()
-            # 检索词查询处理
-            query_set = list(query_set)
-            query_set_new = []
-            for i in range(len(query_set)):
-                src = f'{query_set[i].enterprise}{query_set[i].pst_class}{query_set[i].fullname}{query_set[i].job_content}' \
-                      f'{query_set[i].requirement}{query_set[i].extra_info}'
-                if data['Search_term'] in src:
-                    query_set_new.append(query_set[i])
-            query_set = query_set_new
-            # 分页，序列化
-            obj = StandardResultSetPagination()
-            page_list = obj.paginate_queryset(query_set, request)
-            serializer = serializers.PositionDetailSerializer(instance=page_list, many=True)
-            res = obj.get_paginated_response(serializer.data)
-            return Response(res.data)
-        except Exception as e:
-            print(e)
+        time_start = time.time()
+        # 获取url中的参数
+        data = request.query_params
+        # 参数放入反序列化器中校验
+        src = PositionDataSerializer(data=data)
+        back_dir = dict(code=200, msg="", data=dict())
+        if not src.is_valid():
+            back_dir['msg'] = src.errors
+            return Response(back_dir)
+        # 对条件进行抽取
+        conditions = list(data.keys())
+        conditions.remove('Search_term')
+        if len(conditions) != 0:
+            # 空值检测，序列化中没办法检测空值，所以在这手动检测，并且剔除可能的不是要求的条件字段
+            query = ['Search_term',
+                     'enterprise',
+                     'pst_class',
+                     'fullname',
+                     'job_content',
+                     'requirement']
+            for i in conditions:
+                # 删除空值参数,删除非要求参数
+                if data[i] == '' or i not in query:
+                    conditions.remove(i)
+        # 数据查询
+        if len(conditions) == 0:
+            query_set = Position.objects.all()
+        else:
+            # 动态拼接条件
+            sql = {}
+            for i in range(len(conditions)):
+                if conditions[i] == 'job_content' or conditions[i] == 'requirement':
+                    sql[conditions[i] + '__icontains'] = data[conditions[i]]
+                else:
+                    sql[conditions[i]] = data[conditions[i]]
+            query_set = Position.objects.filter(**sql).all()
+        # 检索词查询处理(接口速度慢的主要原因，实现线程池拆分判断)
+        query_set_new = []
+        for i in range(len(query_set)):
+            src = f'{query_set[i].enterprise}{query_set[i].pst_class}{query_set[i].fullname}{query_set[i].job_content}' \
+                  f'{query_set[i].requirement}{query_set[i].extra_info}'
+            if data['Search_term'] in src:
+                query_set_new.append(query_set[i])
+
+        query_set = query_set_new
+        # 分页，序列化
+        obj = StandardResultSetPagination()
+        page_list = obj.paginate_queryset(query_set, request)
+        serializer = serializers.PositionDetailSerializer(instance=page_list, many=True)
+        res = obj.get_paginated_response(serializer.data)
+        back_dir['data'] = res.data
+        # 整合返回数据格式
+        back_dir.pop('data')
+        if len(res.data['results']) == 0:
+            back_dir['msg'] = '无数据'
+        back_dir = {**back_dir, **res.data}
+        time_end = time.time()
+        print(time_end - time_start)
+        return Response(back_dir)
+
+
+class PositionRetrievalTest(APIView):
+    # 重构后接口
+    def find_search_term(self, position, search_term):
+        """
+        逻辑：将查询出的数据拆分，然后用多线程同步处理
+        position：查询目标列表
+        search_term：模糊查询字符串
+        return: list
+        """
+        query_sets = []
+        for i in range(len(position)):
+            src = f'{position[i].enterprise},{position[i].pst_class},{position[i].fullname},{position[i].job_content}' \
+                  f',{position[i].requirement},{position[i].extra_info}'
+            if search_term in src:
+                query_sets.append(position[i])
+        return query_sets
+
+        # 职位检索（岗位检索新）
+
+    def get(self, request):
+        time_start = time.time()
+        # 获取url中的参数
+        data = request.query_params
+        # 参数放入反序列化器中校验
+        src = PositionDataSerializer(data=data)
+        back_dir = dict(code=200, msg="", data=dict())
+        if not src.is_valid():
+            back_dir['msg'] = src.errors
+            return Response(back_dir)
+        # 对条件进行抽取
+        conditions = list(data.keys())
+        conditions.remove('Search_term')
+        if len(conditions) != 0:
+            # 空值检测，序列化中没办法检测空值，所以在这手动检测，并且剔除可能的不是要求的条件字段
+            query = ['Search_term',
+                     'enterprise',
+                     'pst_class',
+                     'fullname',
+                     'job_content',
+                     'requirement']
+            for i in conditions:
+                # 删除空值参数,删除非要求参数
+                if data[i] == '' or i not in query:
+                    conditions.remove(i)
+        # 数据查询
+        if len(conditions) == 0:
+            query_set = Position.objects.all()
+        else:
+            # 动态拼接条件
+            sql = {}
+            for i in range(len(conditions)):
+                if conditions[i] == 'job_content' or conditions[i] == 'requirement':
+                    sql[conditions[i] + '__icontains'] = data[conditions[i]]
+                else:
+                    sql[conditions[i]] = data[conditions[i]]
+            query_set = Position.objects.filter(**sql).all()
+        # 检索词查询处理(接口速度慢的主要原因，用多线程拆分处理，全数据筛选时，原接口会达到55s,现在也只是控制在24s内)
+        query_set = list(query_set)
+        query_set_new = []
+        max_workers = 5
+        if len(query_set) >= 20:
+            pool = ThreadPoolExecutor(max_workers=max_workers)
+            for i in range(0, len(query_set), 20):
+                local = i + 20 if i + 20 < len(query_set) else len(query_set)
+                ress = pool.submit(lambda cxp: self.find_search_term(*cxp),(query_set[i:local], data['Search_term']))
+                query_set_new.append(ress)
+
+            query_set = []
+            # print(type(query_set_new[0].result()))
+            for j in query_set_new:
+                if len(j.result()) != 0:
+                    query_set.extend(j.result())
+        else:
+            query_set = self.find_search_term(query_set, data['Search_term'])
+
+        # 分页，序列化
+        obj = StandardResultSetPagination()
+        page_list = obj.paginate_queryset(query_set, request)
+        serializer = serializers.PositionDetailSerializer(instance=page_list, many=True)
+        res = obj.get_paginated_response(serializer.data)
+        back_dir['data'] = res.data
+        # 整合返回数据格式
+        back_dir.pop('data')
+        if len(res.data['results']) == 0:
+            back_dir['msg'] = '无数据'
+        back_dir = {**back_dir, **res.data}
+        time_end = time.time()
+        print(time_end - time_start)
+        return Response(back_dir)
+
 
 
 class PositionCollectionList(APIView):
@@ -1827,10 +1955,39 @@ class CandidatesRecommendation(APIView):
     """
     针对岗位的人才（简历）推荐列表。这个接口不涉及推荐算法，主要是查询和筛选
     get：url参数-<int:rcm_id>来自Recruitment表。根据所传入的rcm_id拿到recruitment对象。推荐人才的思路是：
-        1.教育经历：硬性条件。user.models.PersonalInfo.get_degree可以知道用户的最高学历，用来做筛选
-        2.工作经验：硬性条件。user.models.PersonalInfo.get_work_code提供了计算用户工作经验的方法
-        3.工资区间：职位提供的最高工资（enterprise/models.py:260）高于用户预期工资（cv/models.py:96）就行。
-        4.岗位类别一级类别：cv.models.CV_PositionClass这个表提供了每份简历对应的求职意向，求职意向来自岗位类别enterprise.PositionClass表，都是存的二级类别，一级类别相同就可以推荐。
-        5.岗位类别二级类别：二级类别相同就放在推荐列表的前面一点。
+        1.教育经历：硬性条件。user.models.PersonalInfo.get_degree可以知道用户的最高学历，用来做筛选（根据education）
+        2.工作经验：硬性条件。user.models.PersonalInfo.get_work_code提供了计算用户工作经验的方法（根据job_experience）
+        3.工资区间：职位提供的最高工资（enterprise/models.py:260）高于用户预期工资（cv/models.py:96）就行（salary_max，expected_salary）。
+        4.岗位类别一级类别：cv.models.CV_PositionClass这个表提供了每份简历对应的求职意向，求职意向来自岗位类别enterprise.PositionClass表，
+                        都是存的二级类别，一级类别相同就可以推荐。
+        5.岗位类别二级类别：二级类别相同就放在推荐列表的前面一点（自定义排序）。
         需要分页，返回值应该包括一个简历列表
+    实现计划：一级一级条件筛选(不做统一的条件筛选)，尤其最后类别筛选单独筛选(直接做排序)，（筛选全部封装），校验session
     """
+
+    def get(self, request, rcm_id: int):
+        session_dict = session_exist(request)
+        if session_dict["code"] is 0:
+            return JsonResponse(session_dict, safe=False, json_dumps_params={'ensure_ascii': False})
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        user = User.objects.filter(id=uid).first()
+        back_dir = dict(code=200, msg="", data=dict())
+        try:
+            recr_data = Recruitment.objects.filter(id=rcm_id).first()
+            cv = CV.objects.all()
+            # 条件筛选（教育经历）
+            cv_edu = screen_education(cv, recr_data.education)
+            # 条件筛选（工作经验）
+            cv_exp = screen_experience(cv_edu, recr_data.job_experience)
+            # 条件筛选（工资区间）
+            cv_sal = screen_salary(cv_exp, recr_data.salary_max)
+            # 类别筛选
+            res = screen_position_class(cv_sal, recr_data.position.pst_class.id)
+            # 简历数据序列化
+            cv_data = CvSerializer(instance=res, many=True)
+            back_dir['data'] = cv_data.data
+        except Exception as e:
+            back_dir['msg'] = str(e)
+        return Response(back_dir)
