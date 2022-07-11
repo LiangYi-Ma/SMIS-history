@@ -22,6 +22,6 @@ urlpatterns = [
     path('my-applications/', views.my_application, name="my-applications"),
     path('my_page/', views.my_page_dic, name="my_page"),
     # 获取用户的隐私设置
-    path('privacySetting/v1.0.0/',views.PrivacySettingList.as_view(),name="privacySetting"),
+    path('privacySetting/v1.0.0/', views.PrivacySettingList.as_view(), name="privacySetting"),
 
 ]

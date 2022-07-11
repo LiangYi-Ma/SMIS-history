@@ -747,7 +747,7 @@ class PersonnelRetrieval(APIView):
                 Search_term：为固定检索词，必须条件，其它条件为非必须
             """
             # 前端参数校验
-            data = request.data
+            data = json.loads(request.body.decode())
             ser = PersonnelRetrievalDataSerializer(data=data)
             print(ser.is_valid(raise_exception=True))
             # 对条件进行抽取出来,不包含必须的检索词字段
@@ -792,15 +792,25 @@ class PersonnelRetrieval(APIView):
             print(e)
 
 
+def decode_para(str):
+    bs = str.split('%')[1:]
+    print(bs)
+    result = b''
+    for b in bs:
+        result += bytes([int(b, 16)])
+    return result.decode()
+
+
 class PositionRetrieval(APIView):
     # 职位检索（岗位检索）
     def get(self, request):
         try:
-            data = request.data
+            data = request.GET
+            # print(data)
             ser = PositionDataSerializer(data=data)
             print(ser.is_valid(raise_exception=True))
             # 对条件进行抽取
-            conditions = list(request.data.keys())
+            conditions = list(data.keys())
             conditions.remove('Search_term')
             if len(conditions) != 0:
                 # 空值检测，序列化中没办法检测空值，所以在这手动检测
@@ -1716,13 +1726,20 @@ class ImportCompany(View):
         #     "industry": "互联网/IT/电子/通信",
         #     "financingStageName": 8
         # }
-        with open("enterprise/outer_data/processed_company_info_code.json", "r") as f:
-            all_company_list = json.load(f)
+        file_name = "enterprise/outer_data/enterprise_list_bk.csv"
+        import csv
+        from ast import literal_eval
+        with open(file_name, "r") as f:
+            all_company_list = csv.reader(f)
             for company in all_company_list:
+                company =literal_eval(company[0])
                 check_exist = EnterpriseInfo.objects.filter(name=company["name"])
                 if not check_exist.exists():
-                    if len(company["address"]) > 50: company["address"] = company["address"][:50]
-                    if len(company["companyDescWithHtml"]) > 500: company["address"] = company["address"][:500]
+                    for k in company.keys():
+                        if not company[k]:
+                            company[k] = ""
+                    if not len(company["address"]) > 50: company["address"] = company["address"][:50]
+                    if not len(company["companyDescWithHtml"]) > 500: company["companyDescWithHtml"] = company["companyDescWithHtml"][:500]
                     try:
                         new_user = User.objects.create(username=company["number"], password=make_password("123"))
                     except:
@@ -1732,10 +1749,20 @@ class ImportCompany(View):
                     new_user.enterpriseinfo.name = company["name"][0:18]
                     new_user.enterpriseinfo.size = NumberOfStaff.objects.get(id=random.randint(2, 8))
                     new_user.enterpriseinfo.nature = company["property"]
-                    new_user.enterpriseinfo.address = company["address"]
+                    if len(company["companyWebsiteUrl"]) >= 50:
+                        new_user.enterpriseinfo.site_url = ""
+                    else:
+                        new_user.enterpriseinfo.site_url = company["companyWebsiteUrl"]
+
+                    if not company["address"]:
+                        new_user.enterpriseinfo.address = ""
+                    else:
+                        new_user.enterpriseinfo.address = company["address"]
                     new_user.enterpriseinfo.introduction = company["companyDescWithHtml"]
-                    new_user.enterpriseinfo.site_url = company["companyWebsiteUrl"]
-                    new_user.enterpriseinfo.establish_year = random.randint(2000, 2022)
+                    try:
+                        new_user.enterpriseinfo.establish_year = int(company["establishedTime"])
+                    except:
+                        new_user.enterpriseinfo.establish_year = 2000
                     try:
                         industry = Field.objects.get(name=company["industry"])
                     except:
@@ -1745,9 +1772,17 @@ class ImportCompany(View):
                     new_user.enterpriseinfo.save()
                     new_user.save()
                 else:
+                    for k in company.keys():
+                        if not company[k]:
+                            company[k] = ""
                     this_enterprise = EnterpriseInfo.objects.get(name=company["name"])
                     size = NumberOfStaff.objects.get(id=7)
                     this_enterprise.staff_size = size
+                    if len(company["companyWebsiteUrl"]) >= 50:
+                        this_enterprise.site_url = ""
+                    else:
+                        this_enterprise.site_url = company["companyWebsiteUrl"]
+
                     this_enterprise.save()
 
         return JsonResponse({})
@@ -1777,18 +1812,29 @@ class ImportPosition(View):
         #     "nature": 1,
         #     "publishTime": "2022-06-15 15:50:12"
         # }
-
-        with open("enterprise/outer_data/processed_position_info_code.json", "r") as f:
-            all_position_data = json.load(f)
+        import csv
+        from ast import literal_eval
+        with open("enterprise/outer_data/position_list.csv", "r") as f:
+            all_position_data = csv.reader(f)
             for position in all_position_data:
+                position = literal_eval(position[0])
+                for k in position.keys():
+                    if k == "salary":
+                        if None in position[k]:
+                            position[k] = [random.choice([5000,6000,7000,8000,9000,10000]),
+                                           random.choice([12000,13000,14000,15000,20000,30000])]
+                    else:
+                        if position[k] is None:
+                            position[k] = ""
                 this_enterprise = EnterpriseInfo.objects.get(name=position["enterpriseName"][0:18])
                 try:
-                    pst_class = PositionClass.objects.get(name=position["pstClassName1"])
-
+                    pst_class_set = PositionClass.objects.filter(name=position["pstClassName1"])
+                    if pst_class_set.exists():
+                        pst_class = pst_class_set.first()
                 except:
-                    pst_class = PositionClass.objects.get(id=position["pstClass"])
+                    pst_class = PositionClass.objects.get(name="其他")
 
-                find_exist = Position.objects.filter(job_content=position["desc"][0:150])
+                find_exist = Position.objects.filter(enterprise=this_enterprise, job_content=position["desc"][0:150])
                 if not find_exist.exists():
                     new_position = Position.objects.create(
                         enterprise=this_enterprise,
@@ -1802,7 +1848,7 @@ class ImportPosition(View):
                         position=new_position,
                         number_of_employers=position["numberNeeded"],
                         education=position["education"],
-                        city=position["city"],
+                        city=5,
                         salary_min=position["salary"][0],
                         salary_max=position["salary"][1],
                         salary_unit=1,
