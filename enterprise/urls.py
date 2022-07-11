@@ -22,8 +22,13 @@ urlpatterns = [
 
     # 人才检索
     path("personnel-retrieval/v1.0.0/", views.PersonnelRetrieval.as_view(), name="personnel_retrieval"),
+
     # 职位检索
+    # 因为参数是可变的，参数不确定所以此处不能用drf中要求的url格式，使用/?Search_term='x'格式
     path("position-retrieval/v1.0.0/", views.PositionRetrieval.as_view(), name="position_retrieval"),
+
+    # 重构后职位检索
+    path("personnel-retrieval-test/v1.0.0/", views.PositionRetrievalTest.as_view(), name="personnel_retrieval"),
 
     # 根据session获取收藏的职位列表
     path("position-collection-list/v1.0.0/", views.PositionCollectionList.as_view(), name="PositionCollectionList"),
@@ -36,8 +41,9 @@ urlpatterns = [
     # 职位检索
     path("position-retrieval/", views.PositionRetrieval.as_view(), name="position_retrieval"),
 
-    # 协作HR管理
+    # 协作HR管理  
     path("cooperation-hr/", include([
+
         path("", views.HRCooperation.as_view()),
         path("<int:hr_id>/", views.HRCooperation.as_view()),
     ])),
@@ -73,5 +79,7 @@ urlpatterns = [
 
     path("import-enterpriseinfo/", views.ImportCompany.as_view()),
     path("import-position/", views.ImportPosition.as_view()),
+    # 人才推荐
+    path("candidatesrecommendation/v1.0.0/<int:rcm_id>/", views.CandidatesRecommendation.as_view()),
 
 ]
