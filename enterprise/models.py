@@ -448,7 +448,14 @@ class EnterpriseCooperation(models.Model):
             return EnterpriseCooperation.objects.get(enterprise_id=self.enterprise_id, is_superuser=True).user_id
         except:
             return None
-
+#
+#
+# class Metro(models):
+#     id = models.AutoField(primary_key=True)
+#     title = models.CharField(max_length=20)
+#     line = models.CharField(max_length=30)
+#     province =
+#
 
 # 分页器，不需要迁移
 class StandardResultSetPagination(LimitOffsetPagination):
