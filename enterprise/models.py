@@ -188,10 +188,20 @@ class Position(models.Model):
 
     create_time = models.DateTimeField(auto_now_add=True, null=True, verbose_name='创建时间')
     update_time = models.DateTimeField(auto_now=True, null=True, verbose_name='更新时间')
+    like_str = models.CharField(max_length=2500, verbose_name='全字段拼接', default='')
 
     class Meta:
         verbose_name = "岗位信息表"
         verbose_name_plural = verbose_name
+
+    def like_str_default(self):
+        # 不做空值检测，因为外键本身会自动做空值校验，之所用，隔开是为了防止匹配时两字段合并匹配
+        try:
+            src = f'{self.enterprise.name},{self.pst_class.name},{self.fullname},{self.job_content},{self.requirement}' \
+                  f',{self.extra_info}'
+            self.like_str = src
+        except Exception:
+            self.like_str = ''
 
     def name(self):
         if not is_null(self.fullname):
@@ -448,6 +458,8 @@ class EnterpriseCooperation(models.Model):
             return EnterpriseCooperation.objects.get(enterprise_id=self.enterprise_id, is_superuser=True).user_id
         except:
             return None
+
+
 #
 #
 # class Metro(models):
