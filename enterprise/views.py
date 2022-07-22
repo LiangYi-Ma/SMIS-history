@@ -15,7 +15,7 @@ from django.contrib.sessions.models import Session
 from django.contrib.auth.hashers import make_password
 import multiprocessing
 from .serializers import PersonnelRetrievalDataSerializer, PositionDataSerializer, CvSerializer
-from .utils import position_retrieval
+# from .utils import position_retrieval
 from .utils.candidatesrecommendation import screen_education, screen_experience, screen_salary, screen_position_class
 
 """app's models"""
@@ -965,7 +965,7 @@ class PositionRetrievalTest(APIView):
         print(time_end - time_start)
         return Response(back_dir)
 
-      
+
 class PositionCollectionList(APIView):
     # 岗位收藏列表
     def get(self, request):
