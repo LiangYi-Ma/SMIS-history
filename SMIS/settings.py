@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     # 标签模块
     'taggit',
     'django_crontab',
+    'utils'
 ]
 
 SITE_ID = 1
@@ -149,14 +150,14 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'db_smis',
         'USER': 'root',
-        'PASSWORD': '1151014082',
+        'PASSWORD': '123456',
         'HOST': '127.0.0.1',
     },
     'db_cert': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'db_smis_for_cert',
         'USER': 'root',
-        'PASSWORD': '1151014082',
+        'PASSWORD': '123456',
         'HOST': '127.0.0.1',
     }
 }

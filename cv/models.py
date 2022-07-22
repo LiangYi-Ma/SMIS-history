@@ -112,6 +112,16 @@ class CV(models.Model):
     was_created_recently.short_description = '最近创建？'
     was_updated_recently.boolean = True
     was_updated_recently.short_description = '最近更新？'
+    like_str = models.CharField(max_length=2500, verbose_name='全字段拼接', default='')
+
+    def like_str_default(self):
+        # 不做空值检测，因为外键本身会自动做空值校验，之所用，隔开是为了防止匹配时两字段合并匹配
+        try:
+            src = f'{self.industry.name},{self.major},{self.courses},{self.english_skill},{self.computer_skill}' \
+                  f',{self.professional_skill},{self.award},{self.talent}'
+            self.like_str = src
+        except Exception:
+            self.like_str = ''
 
     def display(self):
         return str(self.user_id)
@@ -176,4 +186,3 @@ class CVFile(models.Model):
 
     class Meta:
         verbose_name_plural = '简历上传表'
-
