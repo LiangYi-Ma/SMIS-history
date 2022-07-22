@@ -284,3 +284,9 @@ class CvSerializer(serializers.ModelSerializer):
     class Meta:
         model = cv_models.CV
         fields = '__all__'
+
+
+class MetroSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Metro
+        fields = ("line", "title")

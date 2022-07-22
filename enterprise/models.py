@@ -460,14 +460,34 @@ class EnterpriseCooperation(models.Model):
             return None
 
 
-#
-#
-# class Metro(models):
-#     id = models.AutoField(primary_key=True)
-#     title = models.CharField(max_length=20)
-#     line = models.CharField(max_length=30)
-#     province =
-#
+class Metro(models.Model):
+    id = models.AutoField(primary_key=True)
+    title = models.CharField(max_length=20)
+    line = models.CharField(max_length=30)
+    ascode = models.IntegerField(null=True, blank=True)
+    province = models.CharField(max_length=20)
+    # 未实装
+    is_start_point = models.BooleanField(default=False, null=True, blank=True)
+    # 未实装
+    is_end_point = models.BooleanField(default=False, null=True, blank=True)
+    # 未实装
+    next_point = models.IntegerField(default=None, null=True, blank=True)
+    lat = models.FloatField(verbose_name="纬度")
+    lng = models.FloatField(verbose_name="经度")
+
+    def get_location(self):
+        return [self.lat, self.lng]
+
+
+class EnterpriseLocation(models.Model):
+    id = models.OneToOneField(EnterpriseInfo, primary_key=True, on_delete=models.CASCADE)
+    lat = models.FloatField(verbose_name="纬度")
+    lng = models.FloatField(verbose_name="经度")
+    ascode = models.IntegerField(null=True, blank=True)
+
+    def get_location(self):
+        return [self.lat, self.lng]
+
 
 # 分页器，不需要迁移
 class StandardResultSetPagination(LimitOffsetPagination):

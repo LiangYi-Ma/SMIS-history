@@ -1,6 +1,6 @@
 from django.urls import path, include
 from enterprise.views import *
-
+from enterprise import views_location as loc_views
 from . import views
 
 urlpatterns = [
@@ -50,7 +50,7 @@ urlpatterns = [
     # 职位检索
     path("position-retrieval/", views.PositionRetrieval.as_view(), name="position_retrieval"),
 
-    # 协作HR管理  
+    # 协作HR管理
     path("cooperation-hr/", include([
         path("", views.HRCooperation.as_view()),
         path("<int:hr_id>/", views.HRCooperation.as_view()),
@@ -87,6 +87,13 @@ urlpatterns = [
 
     path("import-enterpriseinfo/", views.ImportCompany.as_view()),
     path("import-position/", views.ImportPosition.as_view()),
+
+    # 位置服务
+    path("initial_metro/", loc_views.InitialMetroInfo.as_view()),
+    path("initial_enterprise_location/", loc_views.InitialEnterpriseLocation.as_view()),
+    path("nearby_enterprise/", loc_views.NearbyEnterprise.as_view()),
+    path("metro_list/", loc_views.MetroList.as_view()),
+
     # 人才推荐
     path("candidatesrecommendation/v1.0.0/<int:rcm_id>/", views.CandidatesRecommendation.as_view()),
 

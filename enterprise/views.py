@@ -15,6 +15,7 @@ from django.contrib.sessions.models import Session
 from django.contrib.auth.hashers import make_password
 import multiprocessing
 from .serializers import PersonnelRetrievalDataSerializer, PositionDataSerializer, CvSerializer
+# from .utils import position_retrieval
 from .utils.candidatesrecommendation import screen_education, screen_experience, screen_salary, screen_position_class
 from .utils.default_like_str import default_like_str
 
