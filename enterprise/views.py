@@ -17,6 +17,7 @@ import multiprocessing
 from .serializers import PersonnelRetrievalDataSerializer, PositionDataSerializer, CvSerializer
 # from .utils import position_retrieval
 from .utils.candidatesrecommendation import screen_education, screen_experience, screen_salary, screen_position_class
+from .utils.default_like_str import default_like_str
 
 """app's models"""
 from cv.models import CV
@@ -55,7 +56,7 @@ from .utils.initialization_applications_hr import InitializationApplicationsHr
 import numpy as np
 
 # 用于编写事务
-from django.db import transaction
+from django.db import transaction, connection
 
 # Create your views here.
 
@@ -876,7 +877,7 @@ class PositionRetrieval(APIView):
 
 
 class PositionRetrievalTest(APIView):
-    # 重构后接口
+    # 多线程方式重构后接口
     def find_search_term(self, position, search_term):
         """
         逻辑：将查询出的数据拆分，然后用多线程同步处理
@@ -939,11 +940,10 @@ class PositionRetrievalTest(APIView):
             pool = ThreadPoolExecutor(max_workers=max_workers)
             for i in range(0, len(query_set), 20):
                 local = i + 20 if i + 20 < len(query_set) else len(query_set)
-                ress = pool.submit(lambda cxp: self.find_search_term(*cxp),(query_set[i:local], data['Search_term']))
+                ress = pool.submit(lambda cxp: self.find_search_term(*cxp), (query_set[i:local], data['Search_term']))
                 query_set_new.append(ress)
 
             query_set = []
-            # print(type(query_set_new[0].result()))
             for j in query_set_new:
                 if len(j.result()) != 0:
                     query_set.extend(j.result())
@@ -963,6 +963,83 @@ class PositionRetrievalTest(APIView):
         back_dir = {**back_dir, **res.data}
         time_end = time.time()
         print(time_end - time_start)
+        return Response(back_dir)
+
+
+class PositionRetrievalLike(APIView):
+    # 职位检索（数据库优化）
+    def get(self, request):
+        # 获取url中的参数
+        data = request.query_params
+        # 参数放入反序列化器中校验
+        src = PositionDataSerializer(data=data)
+        back_dir = dict(code=200, msg="", data=dict())
+        if not src.is_valid():
+            back_dir['msg'] = src.errors
+            return Response(back_dir)
+        # 对条件进行抽取
+        conditions = list(data.keys())
+        conditions.remove('Search_term')
+        if len(conditions) != 0:
+            # 空值检测，序列化中没办法检测空值，所以在这手动检测，并且剔除可能的不是要求的条件字段
+            query = ['Search_term',
+                     'enterprise',
+                     'pst_class',
+                     'fullname',
+                     'job_content',
+                     'requirement']
+            for i in conditions:
+                # 删除空值参数,删除非要求参数
+                if data[i] == '' or i not in query:
+                    conditions.remove(i)
+        # 数据查询
+        if len(conditions) == 0:
+            query_set = Position.objects.filter(like_str__icontains=data['Search_term']).all()
+        else:
+            # 动态拼接条件
+            sql = {}
+            for i in range(len(conditions)):
+                if conditions[i] == 'job_content' or conditions[i] == 'requirement':
+                    sql[conditions[i] + '__icontains'] = data[conditions[i]]
+                else:
+                    sql[conditions[i]] = data[conditions[i]]
+            # sql['like_str__icontains'] = data['Search_term']
+            query_set = Position.objects.filter(**sql, like_str__icontains=data['Search_term']).all()
+        # 分页，序列化
+        obj = StandardResultSetPagination()
+        page_list = obj.paginate_queryset(query_set, request)
+        serializer = serializers.PositionDetailSerializer(instance=page_list, many=True)
+        res = obj.get_paginated_response(serializer.data)
+        back_dir['data'] = res.data
+        # 整合返回数据格式
+        back_dir.pop('data')
+        if len(res.data['results']) == 0:
+            back_dir['msg'] = '无数据'
+        back_dir = {**back_dir, **res.data}
+        return Response(back_dir)
+
+
+class InsertPosition(APIView):
+    def post(self, request):
+        datas = request.data
+        enter = EnterpriseInfo.objects.filter(id=int(datas['enterprise'])).first()
+        pst = PositionClass.objects.filter(id=int(datas['pst_class'])).first()
+        position = Position(enterprise=enter,
+                            pst_class=pst,
+                            fullname=datas['fullname'],
+                            job_content=datas['job_content'],
+                            requirement=datas['requirement'],
+                            extra_info=datas['extra_info'])
+        position.like_str_default()
+        position.save()
+        return Response()
+
+
+class DefaultLikeStr(APIView):
+    def get(self, request):
+        back_dir = dict(code=200, msg="", data=dict())
+        bool, msg = default_like_str()
+        back_dir['msg'] = msg
         return Response(back_dir)
 
 
@@ -1849,14 +1926,16 @@ class ImportCompany(View):
         with open(file_name, "r") as f:
             all_company_list = csv.reader(f)
             for company in all_company_list:
-                company =literal_eval(company[0])
+                company = literal_eval(company[0])
                 check_exist = EnterpriseInfo.objects.filter(name=company["name"])
                 if not check_exist.exists():
                     for k in company.keys():
                         if not company[k]:
                             company[k] = ""
                     if not len(company["address"]) > 50: company["address"] = company["address"][:50]
-                    if not len(company["companyDescWithHtml"]) > 500: company["companyDescWithHtml"] = company["companyDescWithHtml"][:500]
+                    if not len(company["companyDescWithHtml"]) > 500: company["companyDescWithHtml"] = company[
+                                                                                                           "companyDescWithHtml"][
+                                                                                                       :500]
                     try:
                         new_user = User.objects.create(username=company["number"], password=make_password("123"))
                     except:
@@ -1938,8 +2017,8 @@ class ImportPosition(View):
                 for k in position.keys():
                     if k == "salary":
                         if None in position[k]:
-                            position[k] = [random.choice([5000,6000,7000,8000,9000,10000]),
-                                           random.choice([12000,13000,14000,15000,20000,30000])]
+                            position[k] = [random.choice([5000, 6000, 7000, 8000, 9000, 10000]),
+                                           random.choice([12000, 13000, 14000, 15000, 20000, 30000])]
                     else:
                         if position[k] is None:
                             position[k] = ""
