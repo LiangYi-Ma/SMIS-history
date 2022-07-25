@@ -21,7 +21,13 @@ urlpatterns = [
     path("position-details/<int:position_id>/", views.PositionDetailsView.as_view()),
 
     # 人才检索
-    path("personnel-retrieval/v1.0.0/", views.PersonnelRetrieval.as_view(), name="personnel_retrieval"),
+    # path("personnel-retrieval/v1.0.0/", views.PersonnelRetrieval.as_view(), name="personnel_retrieval"),
+
+    # 优化后：人才检索
+    path("personnel-retrieval/v1.0.0/", views.PersonnelRetrievalLike.as_view(), name="personnel_retrieval_like"),
+
+    # 工具接口：初始CV全表like_str字段数据
+    path("default-like-str-cv/", views.DefaultLikeStrCv.as_view()),
 
     # 职位检索
     # 因为参数是可变的，参数不确定所以此处不能用drf中要求的url格式，使用/?Search_term='x'格式
@@ -37,7 +43,7 @@ urlpatterns = [
     path("insert-position/", views.InsertPosition.as_view()),
 
     # 工具接口：初始全表like_str字段数据
-    path("default-like-str/", views.DefaultLikeStr.as_view()),
+    path("default-like-str-position/", views.DefaultLikeStrPosition.as_view()),
 
     # 根据session获取收藏的职位列表
     path("position-collection-list/v1.0.0/", views.PositionCollectionList.as_view(), name="PositionCollectionList"),

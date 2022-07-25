@@ -811,6 +811,75 @@ class PersonnelRetrieval(APIView):
         return Response(back_dir)
 
 
+class PersonnelRetrievalLike(APIView):
+    def get(self, request):
+        back_dir = dict(code=200, msg="", data=dict())
+        try:
+            # 需要组装成字符串模糊查询的字段
+            """
+                Search_term：为固定检索词，必须条件，其它条件为非必须
+            """
+            # 前端参数校验
+            data = request.query_params
+            ser = PersonnelRetrievalDataSerializer(data=data)
+            if not ser.is_valid():
+                back_dir['msg'] = ser.errors
+                return Response(back_dir)
+            # 对条件进行抽取出来,不包含必须的检索词字段
+            conditions = list(data.keys())
+            conditions.remove('Search_term')
+            if len(conditions) != 0:
+                # 空值检测，序列化中没办法检测空值，所以在这手动检测
+                query = ['Search_term',
+                         'industry',
+                         'major',
+                         'courses',
+                         'english_skill',
+                         'computer_skill',
+                         'expected_salary',
+                         'professional_skill']
+                for i in conditions:
+                    if data[i] == '' or i not in query:
+                        conditions.remove(i)
+            # 数据查询
+            if len(conditions) == 0:
+                query_set = CV.objects.filter(like_str__icontains=data['Search_term']).all()
+            else:
+                sql = {}
+                # 动态拼接字符串
+                for i in range(len(conditions)):
+                    # 课程因为有多个所以需要模糊查询该字段
+                    if conditions[i] == 'courses' or conditions[i] == 'professional_skill':
+                        sql[conditions[i] + '__icontains'] = data[conditions[i]]
+                    else:
+                        sql[conditions[i]] = data[conditions[i]]
+
+                query_set = CV.objects.filter(**sql, like_str__icontains=data['Search_term']).all()
+            # 检索词查询处理
+            query_set = list(query_set)
+            # 序列化，分页处理
+            obj = StandardResultSetPagination()
+            page_list = obj.paginate_queryset(query_set, request)
+            serializer = serializers.PersonnelRetrievalSerializer(instance=page_list, many=True)
+            res = obj.get_paginated_response(serializer.data)
+            back_dir.pop('data')
+            if len(res.data['results']) == 0:
+                back_dir['msg'] = '无数据'
+            back_dir = {**back_dir, **res.data}
+        except Exception as e:
+            back_dir['msg'] = str(e)
+            back_dir['data'] = ''
+        return Response(back_dir)
+
+
+class DefaultLikeStrCv(APIView):
+    def get(self, request):
+        back_dir = dict(code=200, msg="", data=dict())
+        bool, msg = default_like_str_cv()
+        back_dir['msg'] = msg
+        return Response(back_dir)
+
+
 class PositionRetrieval(APIView):
 
     # 职位检索（岗位检索新）
@@ -1035,7 +1104,7 @@ class InsertPosition(APIView):
         return Response()
 
 
-class DefaultLikeStr(APIView):
+class DefaultLikeStrPosition(APIView):
     def get(self, request):
         back_dir = dict(code=200, msg="", data=dict())
         bool, msg = default_like_str()
