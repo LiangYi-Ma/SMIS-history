@@ -11,3 +11,11 @@ QCC_TIMESPAN = str(int(time.time()))  # 需要秒级10位Unix时间戳，字符�
 qcc_hl = hashlib.md5()
 qcc_hl.update(f'{QCC_KEY}{QCC_TIMESPAN}{QCC_SECRETKEY}'.encode(encoding='utf-8'))
 QCC_TOKEN = qcc_hl.hexdigest().upper()  # 大写32位字符串
+
+BDY_APP_KEY = 'A5lla8k7tMdtCoF1D4TifIsh'
+BDY_SECRET_KEY = 'OTWzVkLLOOsDuWVGEllKkKvZ7V3nrtR9'
+BDY_ACCESS_TOKEN_URL = 'https://aip.baidubce.com/oauth/2.0/token'
+BDY_GRANT_TYPE = 'client_credentials'
+BDY_CHECK = "https://aip.baidubce.com/rest/2.0/solution/v1/text_censor/v2/user_defined"
+BDY_HEADERS = {'content-type': 'application/x-www-form-urlencoded'}
+BDY_ACCESS_TOKEN = ''  # 初始化
