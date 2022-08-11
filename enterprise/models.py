@@ -1,5 +1,8 @@
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from datetime import datetime, timedelta
+
+from django.db.models import CASCADE
 from django.urls import reverse
 
 from django.utils import timezone
@@ -13,7 +16,8 @@ from django.utils.translation import gettext, gettext_lazy as _
 from user.models import User
 from SMIS.constants import EDUCATION_LEVELS, NATIONS, MARTIAL_CHOICES, USER_CLASSES, SEX_CHOICE, SKILL_CHOICES, \
     NATURE_CHOICES, FINANCING_STATUS_CHOICES, PROVINCES_CHOICES, TIME_UNIT_CHOICES, YEAR_CHOICES, JOB_NATURE_CHOICES, \
-    ENTITY_LIST, PROGRESS_CHOICES
+    ENTITY_LIST, PROGRESS_CHOICES, JOB_KEYWORDS_IS_LEVEL, POSITIONNEW_STATUS
+from cert.models import certificationInfo
 
 
 # Create your models here.
@@ -98,7 +102,7 @@ class Field(models.Model):
     id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=15, verbose_name='领域名称')
     desc = models.CharField(max_length=50, verbose_name='领域描述', blank=True, null=True)
-    parent = models.ForeignKey('self', default=0, null=True, blank=True, related_name='children',
+    parent = models.ForeignKey('self', default=1, null=True, blank=True, related_name='children',
                                verbose_name='上级分类', limit_choices_to={'is_root': True}, on_delete=models.SET_DEFAULT)
     is_root = models.BooleanField(default=False, verbose_name='是否是一级分类')
     is_enable = models.BooleanField(default=True, verbose_name="是否启用")
@@ -499,3 +503,81 @@ class StandardResultSetPagination(LimitOffsetPagination):
     offset_query_param = "offset"
     # 页尺寸上限
     max_limit = None
+
+
+class JobKeywords(models.Model):
+    name = models.CharField(max_length=10, verbose_name='岗位关键词名称', null=True, blank=True)
+    create_time = models.DateTimeField(auto_now_add=True, null=True, verbose_name='创建时间')
+    level = models.IntegerField(choices=JOB_KEYWORDS_IS_LEVEL, default=1)
+    parent = models.ForeignKey('self', verbose_name="父节点", null=True, blank=True, on_delete=models.SET_NULL)  # 两层结构
+    is_enable = models.BooleanField(verbose_name="状态", default=True)
+
+    class Meta:
+        verbose_name_plural = "岗位关键词表"
+
+    def __str__(self):
+        return self.name
+
+
+class PositionNew(models.Model):
+    fullname = models.CharField(max_length=10, verbose_name='岗位名称', null=True, blank=True)
+    job_nature = models.IntegerField(choices=JOB_NATURE_CHOICES, default=1,
+                                     null=False, verbose_name="工作性质")
+    job_content = models.CharField(max_length=150, verbose_name='工作内容', null=True, blank=True)
+    pst_class = models.ForeignKey(PositionClass, limit_choices_to={'is_root': False}, on_delete=models.SET_NULL,
+                                  null=True, blank=True, verbose_name="岗位类别")
+    field = models.ManyToManyField(Field, verbose_name="行业类型")
+    education = models.IntegerField(choices=EDUCATION_LEVELS, null=True, blank=True, verbose_name="最低学历要求")
+    job_experience = models.IntegerField(choices=YEAR_CHOICES, default=1,
+                                         null=False, verbose_name="工作经验要求")
+    jobkeywords = models.ManyToManyField(JobKeywords, verbose_name="岗位关键词", limit_choices_to={'level': 2})
+    city = models.IntegerField(choices=PROVINCES_CHOICES, null=True, blank=True, verbose_name="工作地点")
+    salary_min = models.IntegerField(null=False, verbose_name="最低入职工资")
+    salary_max = models.IntegerField(null=False, verbose_name="最高入职工资")
+    salary_unit = models.IntegerField(default=12, validators=[MinValueValidator(12), MaxValueValidator(24)],
+                                      null=False, verbose_name="待遇水平个数")
+    tag = TaggableManager(through=TaggedWhatever, blank=True, verbose_name="职位福利")
+    number_of_employers = models.IntegerField(null=True, blank=True, verbose_name="招聘人数")
+    email = models.EmailField(null=True, blank=True, verbose_name="简历邮箱")
+    certificationInfo_id = models.IntegerField(null=True, blank=True, verbose_name="资格证书")
+    status = models.IntegerField(choices=POSITIONNEW_STATUS, null=True, default=1, verbose_name="岗位状态")
+    enterprise = models.ForeignKey(EnterpriseInfo, on_delete=models.CASCADE, verbose_name='企业')
+    create_time = models.DateTimeField(auto_now_add=True, null=True, verbose_name='创建时间')
+    update_time = models.DateTimeField(auto_now=True, null=True, verbose_name='更新时间')
+    like_str = models.CharField(max_length=2500, verbose_name='全字段拼接', default='')
+
+    def like_str_default(self):
+        # 不做空值检测，因为外键本身会自动做空值校验，之所用，隔开是为了防止匹配时两字段合并匹配
+        try:
+            src = f'{self.enterprise.name},{self.pst_class.name},{self.fullname},{self.job_content},{self.job_nature}' \
+                  f',{self.field.name},{self.education},{self.jobkeywords.name},{self.city},{self.salary_unit},{self.salary_min}' \
+                  f',{self.salary_max},{self.email}'
+            return src
+        except Exception:
+            return ''
+
+    class Meta:
+        verbose_name_plural = "岗位表"
+
+
+# 每次上线时创建新记录, 修改position状态
+# 下线时间到了刷新记录，修改position状态
+# 投递前刷新状态
+class PositionPost(models.Model):
+    id = models.AutoField(primary_key=True)
+    position = models.ForeignKey(PositionNew, null=True, blank=True, verbose_name="职位", on_delete=models.CASCADE)
+    post_time = models.DateTimeField(auto_now_add=True, null=True, blank=True, verbose_name="职位上线时间")
+    post_last_days = models.IntegerField(null=True, blank=True, verbose_name="上线持续时间")
+    refresh_time = models.DateTimeField(auto_now=True, null=True, blank=True, verbose_name="刷新时间")
+
+    def is_overdue(self):
+        overdue = self.post_time + timedelta(days=self.post_last_days)
+        if datetime.now() > overdue:
+            return True
+        else:
+            return False
+
+    def update_status(self):
+        if self.is_overdue():
+            self.position.status = 3
+            self.position.save()

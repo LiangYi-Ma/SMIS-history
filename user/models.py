@@ -1,3 +1,6 @@
+import calendar
+import time
+
 from django.db import models
 import datetime
 from django.utils import timezone
@@ -6,8 +9,8 @@ from django.contrib import auth
 from django.contrib.auth.models import User
 from enterprise.models import PositionClass, PROVINCES_CHOICES
 from SMIS.constants import EDUCATION_LEVELS, NATIONS, MARTIAL_CHOICES, USER_CLASSES, SEX_CHOICE, SKILL_CHOICES, \
-    NATURE_CHOICES, FINANCING_STATUS_CHOICES, PROVINCES_CHOICES, TIME_UNIT_CHOICES, YEAR_CHOICES, JOB_NATURE_CHOICES
-import datetime
+    NATURE_CHOICES, FINANCING_STATUS_CHOICES, PROVINCES_CHOICES, TIME_UNIT_CHOICES, YEAR_CHOICES, JOB_NATURE_CHOICES, \
+    ONLINE_STATUS
 
 
 # Create your models here.
@@ -73,6 +76,8 @@ class PersonalInfo(models.Model):
                               null=True, blank=True, verbose_name='证件照/头像',
                               default="static/img/default_img.jpg")
     update_date = models.DateField(auto_now=True)
+    online_status = models.IntegerField(null=True, blank=True, verbose_name='在线状态', choices=ONLINE_STATUS)
+    online_time = models.DateTimeField(null=True, blank=True, verbose_name='在线状态更新时间')
 
     def name(self):
         user_obj = User.objects.get(id=self.id_id)
@@ -80,6 +85,38 @@ class PersonalInfo(models.Model):
 
     def __str__(self):
         return str(self.id)
+
+    def active_time(self):
+        # 计算活跃时间
+        try:
+            at = self.id.last_login
+            ds = datetime.datetime.now() - at
+            year = int(time.strftime('%Y', time.localtime()))
+            month = int(time.strftime('%m', time.localtime()))
+            days = calendar.monthrange(year, month)[1]
+            days_1 = calendar.monthrange(year - 1 if month == 1 else year, 12 if month == 1 else month - 1)[1]
+            days_2 = calendar.monthrange(year - 1 if month <= 2 else year, 12 if month <= 2 else month - 1)[1]
+            days_3 = calendar.monthrange(year - 1 if month <= 3 else year, 12 if month <= 3 else month - 1)[1]
+            days_4 = calendar.monthrange(year - 1 if month <= 4 else year, 12 if month <= 4 else month - 1)[1]
+            days_5 = calendar.monthrange(year - 1 if month <= 5 else year, 12 if month <= 5 else month - 1)[1]
+            if ds.days <= 0:
+                return 1  # 当天
+            elif ds.days <= 7:
+                return 2  # 一周
+            elif ds.days <= 14:
+                return 3  # 两周
+            elif ds.days <= days:
+                return 4  # 近一个月
+            elif ds.days <= (days + days_1):
+                return 5  # 近两个月
+            elif ds.days <= (days + days_1 + days_2):
+                return 6  # 近三个月
+            elif ds.days <= (days + days_1 + days_2 + days_3 + days_4 + days_5):
+                return 7  # 近六个月
+            else:
+                return 8  # 六个月以上
+        except Exception as e:
+            raise e
 
     def degree_level(self):
         if self.education == 5:
@@ -220,4 +257,3 @@ class PrivacySetting(models.Model):
 
     class Meta:
         verbose_name_plural = "隐私设置表"
-
