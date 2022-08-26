@@ -5,7 +5,6 @@
 @author:Yaqi Meng
 """
 from django.urls import path, include
-from enterprise.views import *
 
 from . import views
 

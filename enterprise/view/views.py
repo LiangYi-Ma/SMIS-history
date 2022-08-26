@@ -14,16 +14,20 @@ from django.views.generic.base import View
 from django.contrib.sessions.models import Session
 from django.contrib.auth.hashers import make_password
 import multiprocessing
-from .serializers import PersonnelRetrievalDataSerializer, PositionDataSerializer, CvSerializer
+
+from cert.models import certificationInfo
+from enterprise.serializers import PersonnelRetrievalDataSerializer, PositionDataSerializer, CvSerializer
 # from .utils import position_retrieval
-from .utils.candidatesrecommendation import screen_education, screen_experience, screen_salary, screen_position_class
-from .utils.default_like_str import default_like_str
+from enterprise.utils.candidatesrecommendation import screen_education, screen_experience, screen_salary, \
+    screen_position_class
+from enterprise.utils.default_like_str import default_like_str
 
 """app's models"""
 from cv.models import CV
 
-from .models import Field, NumberOfStaff, Recruitment, EnterpriseInfo, Applications, Position, EnterpriseCooperation, \
-    JobHuntersCollection, PositionClass, PositionCollection
+from enterprise.models import Field, NumberOfStaff, Recruitment, EnterpriseInfo, Applications, Position, \
+    EnterpriseCooperation, \
+    JobHuntersCollection, PositionClass, PositionCollection, JobKeywords, PositionNew
 
 from user.models import User, PersonalInfo
 from user import models as user_models
@@ -48,11 +52,11 @@ import datetime
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from enterprise import serializers
-from .models import StandardResultSetPagination
+from enterprise.models import StandardResultSetPagination
 from user import serializers as serializers_user
-from .utils.check_hr_utils import check_hr_enterprise, check_hr, hr_is_superuser, hr_appliaction
-from .utils.key_convert import enterpriseinfo_key_convert
-from .utils.initialization_applications_hr import InitializationApplicationsHr
+from enterprise.utils.check_hr_utils import check_hr_enterprise, check_hr, hr_is_superuser, hr_appliaction
+from enterprise.utils.key_convert import enterpriseinfo_key_convert
+from enterprise.utils.initialization_applications_hr import InitializationApplicationsHr
 import numpy as np
 
 # 用于编写事务
@@ -2174,3 +2178,41 @@ class CandidatesRecommendation(APIView):
         except Exception as e:
             back_dir['msg'] = str(e)
         return Response(back_dir)
+
+
+# 数据迁移
+class PositionNewInsert(APIView):
+
+    def post(self, request):
+        # 新岗位表数据迁移：前3000条
+        try:
+            jq = JobKeywords.objects.get(id=1)
+            ps = Position.objects.all()[:3000]
+            f1 = Field.objects.get(id=36)
+            ps1 = Position.objects.all()[1]
+            r1 = Recruitment.objects.filter(position=ps1).first()
+            for i in ps:
+                p1 = PositionNew.objects.create(
+                    fullname=i.fullname,
+                    job_content=i.job_content,
+                    pst_class=i.pst_class,
+                    education=r1.education,
+                    job_experience=r1.job_experience,
+                    city=r1.city,
+                    salary_min=r1.salary_min,
+                    salary_max=r1.salary_max,
+                    salary_unit=r1.salary_unit,
+                    number_of_employers=r1.number_of_employers,
+                    email='1194696374@qq.com',
+                    enterprise=r1.enterprise,
+                    like_str=i.like_str,
+                    certificationInfo_id=1,
+                )
+                p1.jobkeywords.add(jq)
+                p1.field.add(f1)
+            msg = '迁移成功'
+        except Exception as e:
+            msg = str(e)
+        return Response({'msg': msg})
+
+

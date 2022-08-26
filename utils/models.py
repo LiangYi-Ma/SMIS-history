@@ -2,6 +2,7 @@
 # datetime :2022/7/21
 import uuid
 from django.db import models
+from user.models import User
 
 STATES = {
     (0, "使用中"),
@@ -36,3 +37,18 @@ class SensitiveWordInfo(models.Model):
 
     class Meta:
         verbose_name_plural = '敏感词'
+
+
+class CommonWords(models.Model):
+    word = models.CharField(max_length=200, verbose_name="常用语")
+    user = models.ForeignKey(User, verbose_name="用户", on_delete=models.CASCADE)
+    index = models.IntegerField(default=1, verbose_name="排序")
+    create_time = models.DateTimeField(auto_now_add=True, null=True, verbose_name='创建时间')
+    update_time = models.DateTimeField(auto_now=True, null=True, verbose_name='更新时间')
+    is_end = models.BooleanField(default=False, verbose_name='是否最后一条')
+
+    def __str__(self):
+        return str(self.word)
+
+    class Meta:
+        verbose_name_plural = "常用语表"

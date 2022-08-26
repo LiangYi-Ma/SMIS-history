@@ -19,3 +19,5 @@ BDY_GRANT_TYPE = 'client_credentials'
 BDY_CHECK = "https://aip.baidubce.com/rest/2.0/solution/v1/text_censor/v2/user_defined"
 BDY_HEADERS = {'content-type': 'application/x-www-form-urlencoded'}
 BDY_ACCESS_TOKEN = ''  # 初始化
+ONLINE_STATUS_CHECK_TIME = 5  # 用户状态心跳检测时间（单位分钟）
+RES_POSITION_DATA_LIST_COUNT = 20  # 数据列表最长个数限制

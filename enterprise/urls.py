@@ -1,11 +1,11 @@
 from django.urls import path, include
-from enterprise.views import *
 from enterprise import views_location as loc_views
-from . import views
+from enterprise.view import views, views_positions, view_cv_position
+from enterprise.view.views_positions import ShowField, ShowPositionClass
 
 urlpatterns = [
     # path('home/', views.home, name='home'),
-    path("index/", EnterpriseIndexView.as_view(), name="enterprise_index"),
+    path("index/", views.EnterpriseIndexView.as_view(), name="enterprise_index"),
     path("enterprise-info/", views.enterprise_info, name="enterprise_info"),
     path("positions/", views.PositionsPageView.as_view(), name="positions"),
     path("hr/", views.HRPageView.as_view(), name="hr"),
@@ -103,4 +103,48 @@ urlpatterns = [
     # 人才推荐
     path("candidatesrecommendation/v1.0.0/<int:rcm_id>/", views.CandidatesRecommendation.as_view()),
 
+    # 新岗位表数据初始化
+    path("inserts_position_new/v1.0.0/", views.PositionNewInsert.as_view()),
+
+    # 职位部分（新表重构）
+    path("position-make/v1.0.1/", views_positions.PositionMake.as_view()),
+
+    # 职位复制
+    path("position-copy/v1.0.1/", views_positions.PositionMakeCopy.as_view()),
+
+    # field表数据初始化
+    path("field-insert/v1.0.1/", views_positions.FieldInsertData.as_view()),
+
+    # 岗位上线/下线/职位刷新
+    path("post-position/v1.0.1/", views_positions.PostPosition.as_view()),
+
+    # 发布职位审核（机器审核，非人工审核）(1:规范，2：不规范，3：疑似)
+    path("position-examine/v1.0.1/", views_positions.PositionExamine.as_view()),
+
+    # 行业类型列表
+    path("show-field/v1.0.1/", ShowField.as_view()),
+
+    # 岗位类型列表
+    path("show-pst-class/v1.0.1/", ShowPositionClass.as_view()),
+
+    # PositionClass数据初始化
+    path("read-csv/v1.0.1/", views_positions.read_csv.as_view()),
+
+    # 职位福利列表tag
+    path("show-tag/v1.0.1/", views_positions.ShowTag.as_view()),
+
+    # 职位关键字列表jobkeywords
+    path("show-jobkeywords/v1.0.1/", views_positions.ShowJobkeywords.as_view()),
+
+    # 人才信息（收藏人才）
+    path("position-collection/v1.0.1/", view_cv_position.PositionCollectionList.as_view()),
+
+    # V2.0版本企业端：人才检索
+    path("personnel-retrieval/v1.0.1/", view_cv_position.PositionNewCvRetrieval.as_view()),
+
+    # V2.0版本企业端：人才检索中(快捷搜索中岗位信息查询)
+    path("personnel-retrieval-quick-search/v1.0.1/", view_cv_position.PositionNewCvRetrievalQuickSearch.as_view()),
+
+    # V2.0版本企业端：获取企业中发布的岗位列表（用于人才检索中快捷搜索的选项列表）
+    path("enterprise-position/v1.0.1/", view_cv_position.EnterprisePosition.as_view())
 ]

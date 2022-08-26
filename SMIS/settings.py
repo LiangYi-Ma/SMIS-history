@@ -69,7 +69,7 @@ MIDDLEWARE = [
 
 CORS_ORIGIN_ALLOW_ALL = True
 CORS_ALLOW_CREDENTIALS = True
-#
+
 # CORS_ORIGIN_WHITELIST = (
 #     'http://127.0.0.1:8081',
 #     'http://localhost:8081',
@@ -99,7 +99,7 @@ ROOT_URLCONF = 'SMIS.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR), 'static'],
+        'DIRS': [os.path.join(BASE_DIR), 'templates'],
         # 'DIRS': ['frontend/dist'],
         'APP_DIRS': True,
         'OPTIONS': {

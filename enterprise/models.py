@@ -78,15 +78,18 @@ class TaggedWhatever(GenericTaggedItemBase):
 #         return self.tag.name
 
 
-# 岗位类别表
+# 岗位类别表，有三级
 class PositionClass(models.Model):
     id = models.AutoField(primary_key=True)
-    name = models.CharField(max_length=10, verbose_name='岗位类别名称')
+    name = models.CharField(max_length=200, verbose_name='岗位类别名称')
     desc = models.CharField(max_length=50, verbose_name='岗位类别描述', blank=True, null=True)
     parent = models.ForeignKey('self', default=0, null=True, blank=True, related_name='children', verbose_name='上级分类',
-                               limit_choices_to={'is_root': True}, on_delete=models.SET_DEFAULT)
+                               on_delete=models.SET_DEFAULT)
+    # parent = models.IntegerField(default=0, null=True, blank=True)
+    level = models.IntegerField(default=1, null=True, blank=True)
     is_root = models.BooleanField(default=False, verbose_name='是否是一级分类')
     is_enable = models.BooleanField(default=True, verbose_name="是否启用")
+
 
     # image = models.ImageField(upload_to='static/img/field', verbose_name='分类图片', null=True, blank=True)
 
@@ -94,10 +97,16 @@ class PositionClass(models.Model):
         verbose_name = '岗位类别表'
         verbose_name_plural = verbose_name
 
+    def update_level(self):
+        if self.parent:
+            self.level = self.parent.level + 1
+            self.save()
+
     def __str__(self):
         return self.name
 
 
+# 行业分类表，有两级
 class Field(models.Model):
     id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=15, verbose_name='领域名称')
@@ -306,7 +315,7 @@ class Applications(models.Model):
     update_time = models.DateTimeField(auto_now=True, null=True, verbose_name='更新时间')
 
     progress = models.IntegerField(null=False, verbose_name="应聘进度", default=0, blank=True, choices=PROGRESS_CHOICES)
-    hr = models.ForeignKey("EnterpriseCooperation", on_delete=models.CASCADE, verbose_name="hr")
+    hr = models.ForeignKey("EnterpriseCooperation", null=True, blank=True, on_delete=models.CASCADE, verbose_name="hr")
 
     def candidate_age(self):
         return self.cv.user_id.personalinfo.age()
@@ -405,7 +414,7 @@ class JobHuntersCollection(models.Model):
     id = models.AutoField(primary_key=True)
     user_id = models.IntegerField(null=True, blank=True)
     enterprise_id = models.IntegerField(null=True, blank=True)
-    collector = models.IntegerField(null=True, blank=True, verbose_name="企业协作id")
+    collector = models.IntegerField(null=True, blank=True, verbose_name="企业协作id(协作表id)")
     join_date = models.DateTimeField(auto_now_add=True)
 
     def get_user_obj(self):
@@ -493,6 +502,70 @@ class EnterpriseLocation(models.Model):
         return [self.lat, self.lng]
 
 
+# class JobKeywords(models.Model):
+#     name = models.CharField(max_length=10, verbose_name='岗位关键词名称', null=True, blank=True)
+#     create_time = models.DateTimeField(auto_now_add=True, null=True, verbose_name='创建时间')
+#     level = models.IntegerField(choices=JOB_KEYWORDS_IS_LEVEL, default=1)
+#     parent = models.ForeignKey('self', verbose_name="父节点", null=True, blank=True, on_delete=models.SET_NULL)  # 两层结构
+#     is_enable = models.BooleanField(verbose_name="状态", default=True)
+#
+#     class Meta:
+#         verbose_name_plural = "岗位关键词表"
+#
+#
+# class PositionNew(models.Model):
+#     fullname = models.CharField(max_length=10, verbose_name='岗位名称', null=True, blank=True)
+#     job_nature = models.IntegerField(choices=JOB_NATURE_CHOICES, default=1,
+#                                      null=False, verbose_name="工作性质")
+#     job_content = models.CharField(max_length=150, verbose_name='工作内容', null=True, blank=True)
+#     pst_class = models.ForeignKey(PositionClass, limit_choices_to={'is_root': False}, on_delete=models.SET_NULL,
+#                                   null=True, blank=True, verbose_name="岗位类别")
+#     field = models.ManyToManyField(Field, verbose_name="行业类型")
+#     education = models.IntegerField(choices=EDUCATION_LEVELS, null=True, blank=True, verbose_name="最低学历要求")
+#     job_experience = models.IntegerField(choices=YEAR_CHOICES, default=1,
+#                                          null=False, verbose_name="工作经验要求")
+#     jobkeywords = models.ManyToManyField(JobKeywords, verbose_name="岗位关键词")
+#     city = models.IntegerField(choices=PROVINCES_CHOICES, null=True, blank=True, verbose_name="工作地点")
+#     salary_min = models.IntegerField(null=False, verbose_name="最低入职工资")
+#     salary_max = models.IntegerField(null=False, verbose_name="最高入职工资")
+#     salary_unit = models.IntegerField(default=12, validators=[MinValueValidator(12), MaxValueValidator(24)],
+#                                       null=False, verbose_name="待遇水平个数")
+#     tag = TaggableManager(through=TaggedWhatever, blank=True, verbose_name="职位福利")
+#     number_of_employers = models.IntegerField(null=True, blank=True, verbose_name="招聘人数")
+#     email = models.EmailField(null=True, blank=True, verbose_name="简历邮箱")
+#     certificationInfo_id = models.IntegerField(null=True, blank=True, verbose_name="资格证书")
+#     status = models.IntegerField(choices=POSITIONNEW_STATUS, null=True, default=1, verbose_name="岗位状态")
+#     enterprise = models.ForeignKey(EnterpriseInfo, on_delete=models.CASCADE, verbose_name='企业')
+#     create_time = models.DateTimeField(auto_now_add=True, null=True, verbose_name='创建时间')
+#     update_time = models.DateTimeField(auto_now=True, null=True, verbose_name='更新时间')
+#     like_str = models.CharField(max_length=2500, verbose_name='全字段拼接', default='')
+#
+#     class Meta:
+#         verbose_name_plural = "岗位表"
+#
+#
+# # 每次上线时创建新记录, 修改position状态
+# # 下线时间到了刷新记录，修改position状态
+# # 投递前刷新状态
+# class PositionPost(models.Model):
+#     id = models.AutoField(primary_key=True)
+#     position = models.ForeignKey(PositionNew, null=True, blank=True, verbose_name="职位", on_delete=models.CASCADE)
+#     post_time = models.DateTimeField(auto_now_add=True, null=True, blank=True, verbose_name="职位上线时间")
+#     post_last_days = models.IntegerField(null=True, blank=True, verbose_name="上线持续时间")
+#
+#     def is_overdue(self):
+#         overdue = self.post_time + timedelta(days=self.post_last_days)
+#         if datetime.now() > overdue:
+#             return True
+#         else:
+#             return False
+#
+#     def update_status(self):
+#         if self.is_overdue():
+#             self.position.status = 3
+#             self.position.save()
+
+
 # 分页器，不需要迁移
 class StandardResultSetPagination(LimitOffsetPagination):
     # 默认页尺寸，一页返回20条记录
@@ -509,7 +582,8 @@ class JobKeywords(models.Model):
     name = models.CharField(max_length=10, verbose_name='岗位关键词名称', null=True, blank=True)
     create_time = models.DateTimeField(auto_now_add=True, null=True, verbose_name='创建时间')
     level = models.IntegerField(choices=JOB_KEYWORDS_IS_LEVEL, default=1)
-    parent = models.ForeignKey('self', verbose_name="父节点", null=True, blank=True, on_delete=models.SET_NULL)  # 两层结构
+    parent = models.ForeignKey('self', default=1, verbose_name="父节点", null=True, blank=True,
+                               on_delete=models.SET_NULL)  # 两层结构
     is_enable = models.BooleanField(verbose_name="状态", default=True)
 
     class Meta:
@@ -520,10 +594,10 @@ class JobKeywords(models.Model):
 
 
 class PositionNew(models.Model):
-    fullname = models.CharField(max_length=10, verbose_name='岗位名称', null=True, blank=True)
+    fullname = models.CharField(max_length=100, verbose_name='岗位名称', null=True, blank=True)
     job_nature = models.IntegerField(choices=JOB_NATURE_CHOICES, default=1,
                                      null=False, verbose_name="工作性质")
-    job_content = models.CharField(max_length=150, verbose_name='工作内容', null=True, blank=True)
+    job_content = models.CharField(max_length=3000, verbose_name='工作内容', null=True, blank=True)
     pst_class = models.ForeignKey(PositionClass, limit_choices_to={'is_root': False}, on_delete=models.SET_NULL,
                                   null=True, blank=True, verbose_name="岗位类别")
     field = models.ManyToManyField(Field, verbose_name="行业类型")
@@ -581,3 +655,5 @@ class PositionPost(models.Model):
         if self.is_overdue():
             self.position.status = 3
             self.position.save()
+
+

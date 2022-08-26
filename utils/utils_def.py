@@ -13,7 +13,7 @@ import collections
 
 from utils import utils_data
 from utils.utils_data import BDY_ACCESS_TOKEN_URL, BDY_GRANT_TYPE, BDY_APP_KEY, BDY_SECRET_KEY, BDY_CHECK, BDY_HEADERS, \
-    BDY_ACCESS_TOKEN
+    BDY_ACCESS_TOKEN, RES_POSITION_DATA_LIST_COUNT
 
 
 def number(text: str):
@@ -109,12 +109,12 @@ class sensitive_word():
         res_keyword_data = self._res_keyword
         rp = list(res_position_data.keys())
         rk = list(res_keyword_data.keys())
-        if len(rp) > 10:
+        if len(rp) > RES_POSITION_DATA_LIST_COUNT:
             for i in rp[:int(len(rp) * 0.8)]:
                 del res_position_data[i]
             self._res_position = res_position_data
             self._res_keyword = res_keyword_data
-        if len(rk) > 10:
+        if len(rk) > RES_POSITION_DATA_LIST_COUNT:
             for i in rk[:int(len(rk) * 0.8)]:
                 del res_keyword_data[i]
             self._res_position = res_position_data

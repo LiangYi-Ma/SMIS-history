@@ -1,3 +1,6 @@
+import random
+
+import zmail
 from django.shortcuts import render, redirect
 from django.contrib.auth.hashers import make_password
 from django.contrib import auth
@@ -6,11 +9,16 @@ from django.views.decorators.csrf import csrf_exempt
 from django.core.cache import cache
 from django.views.generic.base import View
 from django.utils.crypto import get_random_string
+from rest_framework.response import Response
 from rest_framework.views import APIView
+from uuid import uuid4
 
+from SMIS.data_utils import Utils
+from enterprise.utils import get_now_time
 from . import serializers
+from .api_wx import get_login_info
 from .models import User, PersonalInfo, JobExperience, TrainingExperience, \
-    EducationExperience, Evaluation, WxUserPhoneValidation, PrivacySetting
+    EducationExperience, Evaluation, WxUserPhoneValidation, PrivacySetting, User_WxID, EmailCode
 from cv.models import CV, Industry, CV_PositionClass
 from enterprise.models import Field, NumberOfStaff, Recruitment, EnterpriseInfo, Applications, Position, PositionClass
 from django.contrib.auth.decorators import login_required
@@ -44,7 +52,8 @@ from SMIS.validation import is_number
 
 from django.db.models import Q
 
-from .serializers import PrivacySettingListSerializer
+from .serializers import PrivacySettingListSerializer, SendEmailSerializer, SendEmailPostSerializer
+from .utils import MSG_HEAD, PASSWORD, USERNAME, PORT_HEAD, SIGN, CODE_MINUTES
 
 
 class SearchPositionsView(View):
@@ -119,7 +128,8 @@ class SearchPositionsView(View):
         lst = [q]
         data["query"] = q
         if q in [None, ""]:
-            post_list = Recruitment.objects.filter(post_limit_time__gte=datetime.datetime.now().date()).order_by("-post_limit_time")
+            post_list = Recruitment.objects.filter(post_limit_time__gte=datetime.datetime.now().date()).order_by(
+                "-post_limit_time")
             try:
                 # if len(list(post_list)) >= 20:
                 #     post_list = post_list[:20]
@@ -1348,3 +1358,275 @@ class PrivacySettingList(APIView):
         else:
             back_dic['msg'] = "User does not exist"
         return JsonResponse(back_dic)
+
+
+class BindNumber(APIView):
+    def get(self, request):
+        """
+        1：判断验证码是否过期，以及是否有验证码
+        2：判断验证码是否一致
+        3：判断手机号是否被绑定
+        4：判断用户是否在personinfo存在数据
+        """
+        session_dict = session_exist(request)
+        if session_dict["code"] != 1000:
+            return JsonResponse(session_dict)
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        data = request.data
+        back_dic = dict(code=200, msg='', data='')
+        src = serializers.BindNumberSerializer(data=data)
+        if src.is_valid():
+            unchecked_code = data["code"]
+            phone_number = data["mobile"]
+            code_obj = WxUserPhoneValidation.objects.filter(unvalid_phone_number=phone_number).order_by(
+                "-valid_datetime").first()
+            expired_time = code_obj.valid_datetime + datetime.timedelta(minutes=CODE_MINUTES)
+            if datetime.datetime.now() > expired_time:
+                is_expired = True
+            else:
+                is_expired = False
+
+            if code_obj and not is_expired:
+                if unchecked_code == code_obj.valid_code:
+                    existed_user = PersonalInfo.objects.filter(phone_number=phone_number)
+                    if existed_user.exists():
+                        back_dic["msg"] = "该手机号已被绑定,请勿再次绑定"
+                    else:
+                        pi = PersonalInfo.objects.filter(id=uid)
+                        if pi.exists:
+                            pi.update(phone_number=phone_number)
+                        else:
+                            us = User.objects.get(id=uid)
+                            PersonalInfo.objects.create(id=us, phone_number=phone_number)
+                        back_dic["msg"] = "手机号绑定成功"
+                else:
+                    back_dic["msg"] = "验证码不正确"
+            else:
+                back_dic["msg"] = "验证码已过期，请重新验证"
+        else:
+            back_dic["msg"] = src.errors
+        return Response(back_dic)
+
+    def post(self, request):
+        """
+        1：校验参数
+        2：验证码是否存在
+            1：存在，则看是否过期
+                1：过期：重新发送短信
+                2：不过期：提醒
+            2：不存在：发送短信
+
+        """
+        session_dict = session_exist(request)
+        if session_dict["code"] != 1000:
+            return JsonResponse(session_dict)
+        back_dic = dict(code=200, msg='', data='')
+        data = request.data
+        src = serializers.NumberSerializer(data=data)
+        if src.is_valid():
+            mobile = data["mobile"]  # 联系电话
+            code_obj = WxUserPhoneValidation.objects.filter(unvalid_phone_number=mobile)
+            bool = False
+            if code_obj.exists():
+                expired_time = code_obj.order_by("-valid_datetime").first().valid_datetime + datetime.timedelta(
+                    minutes=CODE_MINUTES)
+                if datetime.datetime.now() > expired_time:
+                    bool = False
+                else:
+                    back_dic["msg"] = "验证码有限期10分钟，请勿再次发起请求"
+                    bool = True
+            else:
+                bool = False
+            if bool:
+                return Response(back_dic)
+            else:
+                port_head = PORT_HEAD
+                username = USERNAME
+                password = PASSWORD
+                msg_head = MSG_HEAD
+                code = rd.randint(1000, 9999)
+                sign = SIGN
+                try:
+                    message = msg_head + str(code) + sign
+                    message_gb = urllib.parse.quote(message.encode("gb2312"))
+
+                    url = port_head + "CorpId=" + username + "&Pwd=" + password + "&Mobile=" + mobile \
+                          + "&Content=" + message_gb + "&SendTime=&cell="
+                    r = requests.get(url).json()
+                    reply_code = int(r)
+                    if reply_code > 0:
+                        back_dic["msg"] = "短信发送成功"
+                        if code_obj.order_by("-valid_datetime").exists():
+                            now_time = get_now_time.now_time()
+                            c1 = code_obj.order_by("-valid_datetime").first()
+                            c1.valid_code = str(code)
+                            c1.valid_datetime = now_time
+                            c1.save()
+                        else:
+                            WxUserPhoneValidation.objects.create(unvalid_phone_number=mobile, valid_code=str(code))
+                    else:
+                        back_dic["msg"] = "错误码" + str(reply_code) + "，请联系管理员"
+                except Exception as e:
+                    back_dic["msg"] = str(e)
+        else:
+            back_dic["msg"] = src.errors
+        return Response(back_dic)
+
+
+class BindWechat(APIView):
+
+    def post(self, request):
+        session_dict = session_exist(request)
+        if session_dict["code"] != 1000:
+            return JsonResponse(session_dict)
+        back_dic = dict(code=200, msg="", data=dict())
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        try:
+            data = request.data
+            src = serializers.WxSerializer(data=data)
+            if src.is_valid():
+                # 使用code拿取信息
+                ud = get_login_info(data['code'])
+                if ud:
+                    wx_id = ud['openid']
+                    # 判断是否已经绑定过
+                    uwi = User_WxID.objects.filter(wx_id=wx_id)
+                    if uwi.exists():
+                        back_dic['msg'] = "该微信已被绑定，请重新绑定"
+                    else:
+                        User_WxID.objects.create(wx_id=wx_id, user=User.objects.get(id=uid))
+                        back_dic['msg'] = "绑定成功"
+                else:
+                    back_dic['msg'] = "获取登录信息失败"
+            else:
+                back_dic['msg'] = src.errors
+        except Exception as e:
+            raise e
+        return Response(back_dic)
+
+    def delete(self, request):
+        session_dict = session_exist(request)
+        if session_dict["code"] != 1000:
+            return JsonResponse(session_dict)
+        back_dic = dict(code=200, msg="", data=dict())
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        try:
+            uwi = User_WxID.objects.filter(user=uid)
+            if uwi.exists():
+                uwi.delete()
+                back_dic['msg'] = '解绑成功'
+            else:
+                back_dic['msg'] = "用户未绑定微信"
+        except Exception as e:
+            back_dic['msg'] = str(e)
+        return Response(back_dic)
+
+
+class BindEmail(APIView):
+
+    def get(self, request):
+        """ 验证邮箱（信息绑定+修改） ：验证码10分钟失效时间"""
+        session_dict = session_exist(request)
+        if session_dict["code"] != 1000:
+            return JsonResponse(session_dict)
+        # 配置数据返回格式
+        back_dic = dict(code=200, msg="", data=dict())
+        session_key = request.META.get("HTTP_AUTHORIZATION")
+        session = Session.objects.get(session_key=session_key)
+        uid = session.get_decoded().get('_auth_user_id')
+        data = request.data
+        src = SendEmailSerializer(data=data)
+        if src.is_valid():
+            try:
+                email = data['email']
+                code = data['code']
+                ec = EmailCode.objects.filter(email=email)
+                if ec.exists():
+                    if ec.first().code == code:
+                        expired_time = ec.first().code_time + datetime.timedelta(
+                            minutes=CODE_MINUTES)
+                        if datetime.datetime.now() > expired_time:
+                            back_dic['data'] = "验证码已失效！"
+                        else:
+                            User.objects.filter(id=uid).update(email=email)
+                            back_dic['data'] = "绑定邮箱成功！"
+                    else:
+                        back_dic['data'] = "验证码错误！"
+                else:
+                    back_dic['data'] = "未向该邮箱发送验证码！"
+
+            except Exception as e:
+                back_dic['msg'] = str(e)
+        else:
+            back_dic['msg'] = src.errors
+        return Response(back_dic)
+
+    def post(self, request):
+        """ 绑定邮箱"""
+        session_dict = session_exist(request)
+        if session_dict["code"] != 1000:
+            return JsonResponse(session_dict)
+        # 配置数据返回格式
+        back_dic = dict(code=200, msg="", data=dict())
+        data = request.data
+        src = SendEmailPostSerializer(data=data)
+        if src.is_valid():
+            session_key = request.META.get("HTTP_AUTHORIZATION")
+            session = Session.objects.get(session_key=session_key)
+            uid = session.get_decoded().get('_auth_user_id')
+            # 判断该用户是否已经绑定过该邮箱
+            u1 = User.objects.filter(id=uid, email=data['email']).exists()
+            if u1:
+                back_dic['msg'] = "该邮箱已经绑定，请勿重新绑定"
+            else:
+                # 为了确保邮箱的唯一性，校验邮箱是否被其它人绑定过
+                u1 = User.objects.filter(email=data['email']).exclude(id=uid).exists()
+                if u1:
+                    back_dic['msg'] = "该邮箱已被其它用户绑定，请勿再次绑定"
+                else:
+                    # 邮箱账号
+                    username = Utils.CUSTOMER_SERVICE_USER_NAME
+                    # 邮箱授权码
+                    authorization_code = Utils.AUTHORIZATION_CODE
+                    # 构建一个邮箱服务对象
+                    uuid = uuid4()
+                    server = zmail.server(username, authorization_code)
+                    # 邮件主体
+                    code = random.randint(100000, 999999)
+                    with open('user/static/send.html', 'r', encoding='utf-8') as f:
+                        content_html = f.read()
+                        content_html = str(content_html).format(data['email'], code)
+                    mail_body = {
+                        'subject': f'【匠才智聘】绑定邮箱(业务编号：{uuid})',  # Anything you want.
+                        'content_html': content_html
+                    }
+                    # 收件人
+                    mail_to = data['email']
+                    try:
+                        ec = EmailCode.objects.filter(email=data['email'])
+                        if ec.exists():
+                            expired_time = ec.first().code_time + datetime.timedelta(
+                                minutes=CODE_MINUTES)
+                            if datetime.datetime.now() > expired_time:
+                                # 发送邮件
+                                server.send_mail(mail_to, mail_body)
+                                now = get_now_time.now_time()
+                                ec.update(code=code, code_time=now)
+                                back_dic['msg'] = "绑定邮箱，发送确认邮件成功"
+                            else:
+                                back_dic['msg'] = "邮件验证码有效期为10分钟，请勿再次发起申请"
+                        else:
+                            server.send_mail(mail_to, mail_body)
+                            EmailCode.objects.create(email=data['email'], code=code)
+                            back_dic['msg'] = "绑定邮箱，发送确认邮件成功"
+                    except Exception as e:
+                        back_dic['msg'] = f'绑定邮箱，发送确认邮件失败：{str(e)}'
+        else:
+            back_dic['msg'] = src.errors
+        return Response(back_dic)

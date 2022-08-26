@@ -137,7 +137,7 @@ class LoginView(View):
             auth.login(request, user_obj)
             back_dic['url'] = '../'
             session_k = request.session.session_key
-            request.session.set_expiry(60 * 60)
+            request.session.set_expiry(60 * 60 * 24)
             back_dic["skey"] = session_k
             back_dic["msg"] = "你用于登陆的用户是" + str(user_obj) + ", 当前session指向用户" \
                               + User.objects.get(id=request.session.get('_auth_user_id')).username

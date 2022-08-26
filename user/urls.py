@@ -23,5 +23,10 @@ urlpatterns = [
     path('my_page/', views.my_page_dic, name="my_page"),
     # 获取用户的隐私设置
     path('privacySetting/v1.0.0/', views.PrivacySettingList.as_view(), name="privacySetting"),
-
+    # 绑定联系电话
+    path('bind-number/v1.0.0/', views.BindNumber.as_view(), name="bind-number"),
+    # 绑定微信
+    path('bind-wechat/v1.0.0/', views.BindWechat.as_view(), name="bind-wechat"),
+    # 绑定邮箱
+    path('bind-email/v1.0.0/', views.BindEmail.as_view(), name="bind-email"),
 ]
